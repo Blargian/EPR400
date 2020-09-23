@@ -29,7 +29,6 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
-#include "stm32f1xx_ll_adc.h"
 #include "stm32f1xx_ll_dma.h"
 #include "stm32f1xx_ll_rcc.h"
 #include "stm32f1xx_ll_bus.h"
@@ -79,14 +78,10 @@ void limitSwitch2Trigger(void);
 #define Limit_SwitchY_Pin LL_GPIO_PIN_1
 #define Limit_SwitchY_GPIO_Port GPIOB
 #define Limit_SwitchY_EXTI_IRQn EXTI1_IRQn
-#define Motor1_DIR_Pin LL_GPIO_PIN_4
-#define Motor1_DIR_GPIO_Port GPIOB
-#define Motor2_DIR_Pin LL_GPIO_PIN_5
-#define Motor2_DIR_GPIO_Port GPIOB
-#define Motor1_Step_Pin LL_GPIO_PIN_6
-#define Motor1_Step_GPIO_Port GPIOB
-#define Motor2_Step_Pin LL_GPIO_PIN_7
-#define Motor2_Step_GPIO_Port GPIOB
+#define MotorY_DIR_Pin LL_GPIO_PIN_4
+#define MotorY_DIR_GPIO_Port GPIOB
+#define MotorX_DIR_Pin LL_GPIO_PIN_5
+#define MotorX_DIR_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

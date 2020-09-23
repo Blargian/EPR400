@@ -73,6 +73,8 @@ static size_t usart_rx_ringbuff_len;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim4;
@@ -86,11 +88,12 @@ uint16_t temperatureInDegrees;
 uint16_t limitSwitchState = 1;
 uint16_t limitSwitch1_Trigger = 0;
 uint16_t limitSwitch2_Trigger = 0;
-uint16_t direction_x = 0;
-uint16_t direction_y = 0;
+uint16_t direction_x = 1;
+uint16_t direction_y = 1;
 
 /*Program actions*/
 uint16_t homing = 0;
+uint16_t heater = 1;
 
 /* USER CODE END PV */
 
@@ -99,9 +102,9 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -145,9 +148,9 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
-  MX_TIM4_Init();
   MX_USART1_UART_Init();
   MX_TIM1_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   usart_send_string("READY");
   /* USER CODE END 2 */
@@ -156,11 +159,17 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	 if(homing==0){
+	 if(homing==1){
 		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
+		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction_x);
+		 HAL_TIM_OC_Start(&htim4, TIM_CHANNEL_1);
 		 HAL_TIM_OC_Start(&htim4, TIM_CHANNEL_2);
-		 homing=0;
+		 homing=1;
 		  }
+	 if(heater==1){
+		 HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buf, ADC_BUF_LEN);
+		 heater = 0;
+	 }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -228,60 +237,33 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE END ADC1_Init 0 */
 
-  LL_ADC_InitTypeDef ADC_InitStruct = {0};
-  LL_ADC_CommonInitTypeDef ADC_CommonInitStruct = {0};
-  LL_ADC_REG_InitTypeDef ADC_REG_InitStruct = {0};
-
-  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-  /* Peripheral clock enable */
-  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC1);
-  
-  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_GPIOA);
-  /**ADC1 GPIO Configuration  
-  PA0-WKUP   ------> ADC1_IN0 
-  */
-  GPIO_InitStruct.Pin = LL_GPIO_PIN_0;
-  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
-  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* ADC1 DMA Init */
-  
-  /* ADC1 Init */
-  LL_DMA_SetDataTransferDirection(DMA1, LL_DMA_CHANNEL_1, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-
-  LL_DMA_SetChannelPriorityLevel(DMA1, LL_DMA_CHANNEL_1, LL_DMA_PRIORITY_LOW);
-
-  LL_DMA_SetMode(DMA1, LL_DMA_CHANNEL_1, LL_DMA_MODE_NORMAL);
-
-  LL_DMA_SetPeriphIncMode(DMA1, LL_DMA_CHANNEL_1, LL_DMA_PERIPH_NOINCREMENT);
-
-  LL_DMA_SetMemoryIncMode(DMA1, LL_DMA_CHANNEL_1, LL_DMA_MEMORY_INCREMENT);
-
-  LL_DMA_SetPeriphSize(DMA1, LL_DMA_CHANNEL_1, LL_DMA_PDATAALIGN_HALFWORD);
-
-  LL_DMA_SetMemorySize(DMA1, LL_DMA_CHANNEL_1, LL_DMA_MDATAALIGN_HALFWORD);
+  ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC1_Init 1 */
 
   /* USER CODE END ADC1_Init 1 */
   /** Common config 
   */
-  ADC_InitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
-  ADC_InitStruct.SequencersScanMode = LL_ADC_SEQ_SCAN_DISABLE;
-  LL_ADC_Init(ADC1, &ADC_InitStruct);
-  ADC_CommonInitStruct.Multimode = LL_ADC_MULTI_INDEPENDENT;
-  LL_ADC_CommonInit(__LL_ADC_COMMON_INSTANCE(ADC1), &ADC_CommonInitStruct);
-  ADC_REG_InitStruct.TriggerSource = LL_ADC_REG_TRIG_SOFTWARE;
-  ADC_REG_InitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
-  ADC_REG_InitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
-  ADC_REG_InitStruct.ContinuousMode = LL_ADC_REG_CONV_CONTINUOUS;
-  ADC_REG_InitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_UNLIMITED;
-  LL_ADC_REG_Init(ADC1, &ADC_REG_InitStruct);
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /** Configure Regular Channel 
   */
-  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_0);
-  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_0, LL_ADC_SAMPLINGTIME_1CYCLE_5);
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
@@ -374,6 +356,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -381,11 +364,20 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 320;
+  htim4.Init.Prescaler = 32;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 1000;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_OC_Init(&htim4) != HAL_OK)
   {
     Error_Handler();
@@ -398,16 +390,18 @@ static void MX_TIM4_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
   sConfigOC.Pulse = 500;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_OC_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
+  __HAL_TIM_ENABLE_OCxPRELOAD(&htim4, TIM_CHANNEL_1);
   if (HAL_TIM_OC_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
+  __HAL_TIM_ENABLE_OCxPRELOAD(&htim4, TIM_CHANNEL_2);
   /* USER CODE BEGIN TIM4_Init 2 */
 
   /* USER CODE END TIM4_Init 2 */
@@ -441,7 +435,7 @@ static void MX_USART1_UART_Init(void)
   */
   GPIO_InitStruct.Pin = LL_GPIO_PIN_9;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -532,8 +526,8 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Channel1_IRQn interrupt configuration */
-  NVIC_SetPriority(DMA1_Channel1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
-  NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel4_IRQn interrupt configuration */
   NVIC_SetPriority(DMA1_Channel4_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
   NVIC_EnableIRQ(DMA1_Channel4_IRQn);
@@ -558,7 +552,7 @@ static void MX_GPIO_Init(void)
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_GPIOB);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOB, Motor1_DIR_Pin|Motor2_DIR_Pin);
+  LL_GPIO_ResetOutputPin(GPIOB, MotorY_DIR_Pin|MotorX_DIR_Pin);
 
   /**/
   LL_GPIO_AF_SetEXTISource(LL_GPIO_AF_EXTI_PORTB, LL_GPIO_AF_EXTI_LINE0);
@@ -593,7 +587,7 @@ static void MX_GPIO_Init(void)
   LL_GPIO_SetPinMode(Limit_SwitchY_GPIO_Port, Limit_SwitchY_Pin, LL_GPIO_MODE_INPUT);
 
   /**/
-  GPIO_InitStruct.Pin = Motor1_DIR_Pin|Motor2_DIR_Pin;
+  GPIO_InitStruct.Pin = MotorY_DIR_Pin|MotorX_DIR_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -748,7 +742,7 @@ void USART1_IRQHandler(void)
 
 void limitSwitch1Trigger(void){
 	limitSwitch1_Trigger = 1; //The limit switch has been pressed
-	HAL_TIM_OC_Stop(&htim4, TIM_CHANNEL_1);
+//	HAL_TIM_OC_Stop(&htim4, TIM_CHANNEL_1);
 	uint16_t direction_x = 1;
 }
 
@@ -758,7 +752,17 @@ void limitSwitch2Trigger(void){
 
 }
 
-// ISR interrupt for timer
+// Thermistor
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+	//HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_RESET);
+	waxThermistor=adc_buf[0];
+	temperatureInDegrees = read_temp(waxThermistor);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buf, ADC_BUF_LEN);
+
+	//printf("Temperature is %u\n", temperatureInDegrees);
+//	printf("hello world!");
+}
 
 
 /* USER CODE END 4 */
