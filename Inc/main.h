@@ -72,6 +72,8 @@ void limitSwitch2Trigger(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define WaxHeater_PWM_Pin LL_GPIO_PIN_6
+#define WaxHeater_PWM_GPIO_Port GPIOA
 #define Limit_SwitchX_Pin LL_GPIO_PIN_0
 #define Limit_SwitchX_GPIO_Port GPIOB
 #define Limit_SwitchX_EXTI_IRQn EXTI0_IRQn
