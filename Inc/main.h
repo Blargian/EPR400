@@ -70,6 +70,7 @@ void Error_Handler(void);
 void limitSwitch1Trigger(void);
 void limitSwitch2Trigger(void);
 void step(char axis, uint16_t numberSteps, uint16_t direction);
+void step_update(char axis);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -83,6 +84,8 @@ void step(char axis, uint16_t numberSteps, uint16_t direction);
 #define Limit_SwitchY_EXTI_IRQn EXTI1_IRQn
 #define MotorY_STEP_Pin LL_GPIO_PIN_15
 #define MotorY_STEP_GPIO_Port GPIOA
+#define MotorZ_DIR_Pin LL_GPIO_PIN_3
+#define MotorZ_DIR_GPIO_Port GPIOB
 #define MotorY_DIR_Pin LL_GPIO_PIN_4
 #define MotorY_DIR_GPIO_Port GPIOB
 #define MotorX_DIR_Pin LL_GPIO_PIN_5

@@ -93,9 +93,9 @@ uint16_t limitSwitch2_Trigger = 0;
 uint16_t direction_x = 1;
 uint16_t direction_y = 1;
 
-uint16_t steps_x_target;
-uint16_t steps_y_target;
-uint16_t steps_z_target;
+uint16_t steps_x_target=0;
+uint16_t steps_y_target=0;
+uint16_t steps_z_target=0;
 
 uint16_t steps_x = 0;
 uint16_t steps_y = 0;
@@ -166,7 +166,6 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-
   usart_send_string("READY");
   /* USER CODE END 2 */
 
@@ -175,7 +174,7 @@ int main(void)
   while (1)
   {
 	 if(homing==1){
-		 step('X',20,1);
+		 step('X',100,0);
 		 homing=0;
 		  }
 	 if(heater==1){
@@ -304,7 +303,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 640;
+  htim1.Init.Prescaler = 100;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 1000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -319,27 +318,28 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_Init(&htim1) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_ENABLE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 500;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_OC_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
+  __HAL_TIM_DISABLE_OCxPRELOAD(&htim1, TIM_CHANNEL_1);
   sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
@@ -669,7 +669,7 @@ static void MX_GPIO_Init(void)
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_GPIOB);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOB, MotorY_DIR_Pin|MotorX_DIR_Pin);
+  LL_GPIO_ResetOutputPin(GPIOB, MotorZ_DIR_Pin|MotorY_DIR_Pin|MotorX_DIR_Pin);
 
   /**/
   LL_GPIO_AF_SetEXTISource(LL_GPIO_AF_EXTI_PORTB, LL_GPIO_AF_EXTI_LINE0);
@@ -704,10 +704,11 @@ static void MX_GPIO_Init(void)
   LL_GPIO_SetPinMode(Limit_SwitchY_GPIO_Port, Limit_SwitchY_Pin, LL_GPIO_MODE_INPUT);
 
   /**/
-  GPIO_InitStruct.Pin = MotorY_DIR_Pin|MotorX_DIR_Pin;
+  GPIO_InitStruct.Pin = MotorZ_DIR_Pin|MotorY_DIR_Pin|MotorX_DIR_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_DOWN;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
@@ -890,41 +891,91 @@ void TIM1_UP_IRQHandler(void)
   {
     if (__HAL_TIM_GET_IT_SOURCE(&htim1, TIM_IT_UPDATE))
     {
-      __HAL_TIM_CLEAR_FLAG(&htim1, TIM_FLAG_UPDATE);
-      steps_x++;
-      if(steps_x==steps_x_target){
-    	  HAL_TIM_OC_Stop(&htim1, TIM_CHANNEL_1);
+    	step_update('X');
+    	__HAL_TIM_CLEAR_FLAG(&htim1, TIM_FLAG_UPDATE);
+        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC1 );
+        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC2 );
+        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC3 );
+        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC4 );
       }
     }
   }
-}
+
 
 void TIM2_IRQHandler(void)
 {
-  if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE))
-  {
-    if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE))
-    {
-      __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-      steps_x++;
-    }
-  }
+	if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE))
+	  {
+	    if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE))
+	    {
+	    	step_update('Y');
+	    	__HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC1 );
+	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC2 );
+	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC3 );
+	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC4 );
+	      }
+	    }
+}
+
+void TIM4_IRQHandler(void)
+{
+	if (__HAL_TIM_GET_FLAG(&htim4, TIM_FLAG_UPDATE))
+	  {
+	    if (__HAL_TIM_GET_IT_SOURCE(&htim4, TIM_IT_UPDATE))
+	    {
+	    	step_update('Z');
+	    	__HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE);
+	        __HAL_TIM_CLEAR_FLAG(&htim4,TIM_FLAG_CC1);
+	        __HAL_TIM_CLEAR_FLAG(&htim4,TIM_FLAG_CC2);
+	        __HAL_TIM_CLEAR_FLAG(&htim4,TIM_FLAG_CC3);
+	        __HAL_TIM_CLEAR_FLAG(&htim4,TIM_FLAG_CC4);
+	      }
+	    }
 }
 
 void step(char axis, uint16_t numberSteps, uint16_t direction){
 	switch(axis){
 	case 'X':
-		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction);
-		__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_UPDATE);
-		HAL_TIM_OC_Start(&htim1, TIM_CHANNEL_1);
 		steps_x_target = numberSteps;
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction);
+		__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_UPDATE );
+		HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
+		break;
+	case 'Y':
+		steps_y_target = numberSteps;
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction);
+		__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE );
+		HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
 		break;
 
-	case 'Y':
-		break;
 	case 'Z':
+		steps_z_target = numberSteps;
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, direction);
+		__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_UPDATE );
+		HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1);
 		break;
 	}
+}
+
+void step_update(char axis){
+	switch(axis){
+		case 'X':
+			steps_x++;
+			if(steps_x==(2*steps_x_target)){
+				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+				steps_x_target=0;
+				steps_x=0;
+			}
+			break;
+		case 'Y':
+
+			break;
+
+		case 'Z':
+
+			break;
+		}
 }
 
 
