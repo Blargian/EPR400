@@ -97,6 +97,8 @@ uint16_t steps_x_target=0;
 uint16_t steps_y_target=0;
 uint16_t steps_z_target=0;
 
+volatile int RELEASE = 1;
+
 uint16_t steps_x = 0;
 uint16_t steps_y = 0;
 uint16_t steps_z = 0;
@@ -175,6 +177,7 @@ int main(void)
   {
 	 if(homing==1){
 		 step('X',100,0);
+		 step('X',100,1);
 		 homing=0;
 		  }
 	 if(heater==1){
@@ -935,14 +938,24 @@ void TIM4_IRQHandler(void)
 }
 
 void step(char axis, uint16_t numberSteps, uint16_t direction){
+
+	//If Release is false hang here. Release is set to false after starting the PWM to ensure that further calls can't be made before
+	// steps complete.
+
+	while(RELEASE!=1){
+		{}
+	}
+
 	switch(axis){
 	case 'X':
+		RELEASE=0;
 		steps_x_target = numberSteps;
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction);
 		__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_UPDATE );
 		HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
 		break;
 	case 'Y':
+		RELEASE=0;
 		steps_y_target = numberSteps;
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction);
 		__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE );
@@ -950,6 +963,7 @@ void step(char axis, uint16_t numberSteps, uint16_t direction){
 		break;
 
 	case 'Z':
+		RELEASE=0;
 		steps_z_target = numberSteps;
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, direction);
 		__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_UPDATE );
@@ -966,6 +980,7 @@ void step_update(char axis){
 				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 				steps_x_target=0;
 				steps_x=0;
+				RELEASE=1;
 			}
 			break;
 		case 'Y':
