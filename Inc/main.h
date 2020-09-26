@@ -71,6 +71,7 @@ void limitSwitch1Trigger(void);
 void limitSwitch2Trigger(void);
 void step(char axis, uint16_t numberSteps, uint16_t direction);
 void step_update(char axis);
+void homing_XY();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -79,9 +80,6 @@ void step_update(char axis);
 #define Limit_SwitchX_Pin LL_GPIO_PIN_0
 #define Limit_SwitchX_GPIO_Port GPIOB
 #define Limit_SwitchX_EXTI_IRQn EXTI0_IRQn
-#define Limit_SwitchY_Pin LL_GPIO_PIN_1
-#define Limit_SwitchY_GPIO_Port GPIOB
-#define Limit_SwitchY_EXTI_IRQn EXTI1_IRQn
 #define MotorY_STEP_Pin LL_GPIO_PIN_15
 #define MotorY_STEP_GPIO_Port GPIOA
 #define MotorZ_DIR_Pin LL_GPIO_PIN_3

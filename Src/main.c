@@ -90,8 +90,8 @@ uint16_t temperatureInDegrees;
 uint16_t limitSwitchState = 1;
 uint16_t limitSwitch1_Trigger = 0;
 uint16_t limitSwitch2_Trigger = 0;
-uint16_t direction_x = 1;
-uint16_t direction_y = 1;
+uint16_t direction_x = 1; //Initially set 1 to home towards limit switch
+uint16_t direction_y = 0; //Initially set 1 to home towards limit switch
 
 uint16_t steps_x_target=0;
 uint16_t steps_y_target=0;
@@ -176,8 +176,8 @@ int main(void)
   while (1)
   {
 	 if(homing==1){
-		 step('X',100,0);
-		 step('X',100,1);
+		 homing_XY();
+		 //step('Y',3000,0);
 		 homing=0;
 		  }
 	 if(heater==1){
@@ -381,7 +381,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1280;
+  htim2.Init.Prescaler = 200;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 1000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -698,13 +698,13 @@ static void MX_GPIO_Init(void)
   LL_GPIO_SetPinPull(Limit_SwitchX_GPIO_Port, Limit_SwitchX_Pin, LL_GPIO_PULL_UP);
 
   /**/
-  LL_GPIO_SetPinPull(Limit_SwitchY_GPIO_Port, Limit_SwitchY_Pin, LL_GPIO_PULL_UP);
+  LL_GPIO_SetPinPull(GPIOB, LL_GPIO_PIN_1, LL_GPIO_PULL_UP);
 
   /**/
   LL_GPIO_SetPinMode(Limit_SwitchX_GPIO_Port, Limit_SwitchX_Pin, LL_GPIO_MODE_INPUT);
 
   /**/
-  LL_GPIO_SetPinMode(Limit_SwitchY_GPIO_Port, Limit_SwitchY_Pin, LL_GPIO_MODE_INPUT);
+  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_1, LL_GPIO_MODE_INPUT);
 
   /**/
   GPIO_InitStruct.Pin = MotorZ_DIR_Pin|MotorY_DIR_Pin|MotorX_DIR_Pin;
@@ -859,20 +859,6 @@ void USART1_IRQHandler(void)
 
 }
 
-// Handling of interrupts for limit switches
-
-void limitSwitch1Trigger(void){
-	limitSwitch1_Trigger = 1; //The limit switch has been pressed
-//	HAL_TIM_OC_Stop(&htim4, TIM_CHANNEL_1);
-	uint16_t direction_x = 1;
-}
-
-void limitSwitch2Trigger(void){
-	limitSwitch2_Trigger = 1; //The limit switch has been pressed
-	uint16_t direction_y = 1;
-
-}
-
 // Thermistor
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
@@ -984,13 +970,51 @@ void step_update(char axis){
 			}
 			break;
 		case 'Y':
-
+			steps_y++;
+			if(steps_y==(2*steps_y_target)){
+				HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+				steps_y_target=0;
+				steps_y=0;
+				RELEASE=1;
+					}
 			break;
 
 		case 'Z':
-
+			steps_z++;
+			if(steps_z==(2*steps_z_target)){
+				HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
+				steps_z_target=0;
+				steps_z=0;
+				RELEASE=1;
+					}
 			break;
+
 		}
+}
+
+void homing_XY(){
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
+		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+}
+
+// Handling of interrupts for limit switches
+
+void limitSwitch1Trigger(void){
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+	direction_x = 0;
+	RELEASE = 1;
+	step('X',200,direction_x);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction_y);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+}
+
+void limitSwitch2Trigger(void){
+	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+	direction_y = 1;
+	RELEASE = 1;
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction_y);
+	step('Y',200,direction_y);
+
 }
 
 

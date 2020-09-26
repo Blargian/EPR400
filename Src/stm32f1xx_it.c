@@ -267,5 +267,25 @@ void TIM1_CC_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+/**
+  * @brief This function handles EXTI line0 interrupt.
+  */
+void EXTI7_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI0_IRQn 0 */
+
+  /* USER CODE END EXTI0_IRQn 0 */
+  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_7) != RESET)
+  {
+    LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_7);
+    /* USER CODE BEGIN LL_EXTI_LINE_0 */
+    limitSwitch2Trigger();
+    /* USER CODE END LL_EXTI_LINE_0 */
+  }
+  /* USER CODE BEGIN EXTI0_IRQn 1 */
+
+  /* USER CODE END EXTI0_IRQn 1 */
+}
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
