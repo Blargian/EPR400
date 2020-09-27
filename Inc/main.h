@@ -74,6 +74,7 @@ void step_update(char axis);
 void homing_XY();
 int PI(int setpoint, int current, int Kp, int Ki);
 int limitActuation(int input, int min, int max);
+void sendTemperature(int temperature);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

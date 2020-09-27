@@ -83,9 +83,10 @@ TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buf[ADC_BUF_LEN];
 uint16_t waxThermistor;
 static uint16_t temperatureInDegrees;
+char sendTemp [8];
+
 
 /*For Limit Switches */
 uint16_t limitSwitchState = 1;
@@ -99,7 +100,6 @@ uint16_t steps_y_target=0;
 uint16_t steps_z_target=0;
 
 volatile int RELEASE = 1;
-volatile startPI;
 
 uint16_t steps_x = 0;
 uint16_t steps_y = 0;
@@ -198,6 +198,7 @@ int main(void)
 	 int pi = PI(30,currentTemperature,50,0);
 	 int actuate = limitActuation(pi,0,500);
 	 htim3.Instance->CCR1 = actuate;
+	 sendTemperature(currentTemperature);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -1040,6 +1041,13 @@ int limitActuation(int input, int min, int max){
 	if(input<min) return min;
 	if(input>max) return max;
 	return input;
+}
+
+void sendTemperature(int temperature){
+	itoa(temperature,sendTemp,10);
+	strcat(sendTemp,"\n");
+	usart_send_string(sendTemp);
+	sendTemp[0] = '\0';
 }
 
 /* USER CODE END 4 */
