@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "lwrb/lwrb.h"
+#include "temperatureSensor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -84,7 +85,7 @@ TIM_HandleTypeDef htim4;
 /* USER CODE BEGIN PV */
 uint16_t adc_buf[ADC_BUF_LEN];
 uint16_t waxThermistor;
-uint16_t temperatureInDegrees;
+static uint16_t temperatureInDegrees;
 
 /*For Limit Switches */
 uint16_t limitSwitchState = 1;
@@ -98,14 +99,15 @@ uint16_t steps_y_target=0;
 uint16_t steps_z_target=0;
 
 volatile int RELEASE = 1;
+volatile startPI;
 
 uint16_t steps_x = 0;
 uint16_t steps_y = 0;
 uint16_t steps_z = 0;
 
 /*Program actions*/
-uint16_t homing = 1;
-uint16_t heater = 0;
+uint16_t homing = 0;
+uint16_t heater = 1;
 
 /* USER CODE END PV */
 
@@ -169,22 +171,33 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   usart_send_string("READY");
+  HAL_ADC_Start(&hadc1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	 if (HAL_ADC_PollForConversion(&hadc1, 1000000) == HAL_OK){
+		 waxThermistor = HAL_ADC_GetValue(&hadc1);
+		 temperatureInDegrees = read_temp(waxThermistor);
+	 }
+
 	 if(homing==1){
 		 homing_XY();
 		 //step('Y',3000,0);
 		 homing=0;
 		  }
 	 if(heater==1){
-		 HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buf, ADC_BUF_LEN);
-		 HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
+		 HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 	     heater = 0;
 	 }
+
+	 int currentTemperature = temperatureInDegrees;
+	 int pi = PI(30,currentTemperature,50,0);
+	 int actuate = limitActuation(pi,0,500);
+	 htim3.Instance->CCR1 = actuate;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -444,7 +457,7 @@ static void MX_TIM3_Init(void)
   htim3.Init.Period = 1000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_OC_Init(&htim3) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -454,15 +467,14 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-  sConfigOC.Pulse = 500;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
-  __HAL_TIM_ENABLE_OCxPRELOAD(&htim3, TIM_CHANNEL_1);
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
@@ -861,16 +873,12 @@ void USART1_IRQHandler(void)
 
 // Thermistor
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-	//HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_RESET);
-	waxThermistor=adc_buf[0];
-	temperatureInDegrees = read_temp(waxThermistor);
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buf, ADC_BUF_LEN);
-	char temperature [2];
-	itoa(temperatureInDegrees,temperature,10);
-	usart_send_string(temperature);
-	//memset(buffer, "", sizeof(buffer));
-}
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+//	//HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_RESET);
+//	waxThermistor=adc_buf[0];
+//	temperatureInDegrees = read_temp(waxThermistor);
+//	HAL_ADC_Start(&hadc1);
+//}
 
 /*Interrupt Routines for counting Steps*/
 
@@ -1017,6 +1025,22 @@ void limitSwitch2Trigger(void){
 
 }
 
+int PI(int setpoint, int current, int Kp, int Ki){
+
+	if(current==0){
+			return 0;
+		}
+
+	int err = setpoint - current;
+	int P = Kp*err;
+	return P;
+}
+
+int limitActuation(int input, int min, int max){
+	if(input<min) return min;
+	if(input>max) return max;
+	return input;
+}
 
 /* USER CODE END 4 */
 
