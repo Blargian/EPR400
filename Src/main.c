@@ -86,6 +86,7 @@ TIM_HandleTypeDef htim4;
 uint16_t waxThermistor;
 static uint16_t temperatureInDegrees;
 char sendTemp [8];
+uint16_t timeElapsed=0;
 
 
 /*For Limit Switches */
@@ -171,18 +172,14 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   usart_send_string("READY");
-  HAL_ADC_Start(&hadc1);
+  HAL_TIM_OC_Start(&htim4,TIM_CHANNEL_4);
+  HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-	 if (HAL_ADC_PollForConversion(&hadc1, 1000000) == HAL_OK){
-		 waxThermistor = HAL_ADC_GetValue(&hadc1);
-		 temperatureInDegrees = read_temp(waxThermistor);
-	 }
 
 	 if(homing==1){
 		 homing_XY();
@@ -195,10 +192,9 @@ int main(void)
 	 }
 
 	 int currentTemperature = temperatureInDegrees;
-	 int pi = PI(30,currentTemperature,50,0);
+	 int pi = PI(50,currentTemperature,50,0);
 	 int actuate = limitActuation(pi,0,500);
 	 htim3.Instance->CCR1 = actuate;
-	 sendTemperature(currentTemperature);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -275,9 +271,9 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T4_CC4;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -288,7 +284,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_13CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -339,8 +335,8 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC4REF;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_ENABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
@@ -521,7 +517,11 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  if (HAL_TIM_OC_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC4REF;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_ENABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
   {
@@ -532,6 +532,12 @@ static void MX_TIM4_Init(void)
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
+  sConfigOC.Pulse = 0;
+  if (HAL_TIM_OC_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -1043,11 +1049,22 @@ int limitActuation(int input, int min, int max){
 	return input;
 }
 
-void sendTemperature(int temperature){
-	itoa(temperature,sendTemp,10);
+void sendTemperature(int time, int temperature){
+	itoa(time,sendTemp,10);
+	strcat(sendTemp,";");
+	char buffer [2];
+	itoa(temperature,buffer,10);
+	strcat(sendTemp,buffer);
 	strcat(sendTemp,"\n");
 	usart_send_string(sendTemp);
 	sendTemp[0] = '\0';
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
+	timeElapsed += 20; //An approximation, ADC conversion is triggered every 20ms - neglecting conversion time here.
+	waxThermistor = HAL_ADC_GetValue(&hadc1);
+	temperatureInDegrees = read_temp(waxThermistor);
+	sendTemperature(timeElapsed,temperatureInDegrees);
 }
 
 /* USER CODE END 4 */
