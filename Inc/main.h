@@ -72,8 +72,8 @@ void limitSwitch2Trigger(void);
 void step(char axis, uint16_t numberSteps, uint16_t direction);
 void step_update(char axis);
 void homing_XY();
-int PI(int setpoint, int current, int Kp, int Ki);
-int limitActuation(int input, int min, int max);
+float PI(float setpoint, float current, int Kp, int Ki);
+int limitActuation(float input, int min, int max);
 void sendTemperature(int time, int temperature);
 /* USER CODE END EFP */
 
@@ -87,12 +87,12 @@ void sendTemperature(int time, int temperature);
 #define MotorY_STEP_GPIO_Port GPIOA
 #define MotorZ_DIR_Pin LL_GPIO_PIN_3
 #define MotorZ_DIR_GPIO_Port GPIOB
-#define MotorY_DIR_Pin LL_GPIO_PIN_4
-#define MotorY_DIR_GPIO_Port GPIOB
 #define MotorX_DIR_Pin LL_GPIO_PIN_5
 #define MotorX_DIR_GPIO_Port GPIOB
 #define MotorZ_STEP_Pin LL_GPIO_PIN_6
 #define MotorZ_STEP_GPIO_Port GPIOB
+#define MotorY_DIR_Pin LL_GPIO_PIN_7
+#define MotorY_DIR_GPIO_Port GPIOB
 #define Timing_Pin LL_GPIO_PIN_9
 #define Timing_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */

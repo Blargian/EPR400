@@ -119,3 +119,8 @@ uint16_t read_temp(uint16_t sample){
      temp = interpolate_table(NTC100K, (float)sample, TABLE_LEN);
      return (uint16_t) temp;
 }
+
+float getTemperature(uint16_t adcValue){
+	float y = -0.000000001540*pow(adcValue,3) + 0.000012241208*pow(adcValue,2) - 0.048113478412*adcValue + 91.639615492516; //Third order polynomial fit obtained in Excel
+	return y;
+}

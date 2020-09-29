@@ -28,6 +28,7 @@
 #include <string.h>
 #include "lwrb/lwrb.h"
 #include "temperatureSensor.h"
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,7 +63,7 @@ static size_t usart_tx_ringbuff_len;
 
 static lwrb_t usart_rx_ringbuff;
 static uint8_t usart_rx_ringbuff_data[128];
-static size_t usart_rx_ringbuff_len;
+//static size_t usart_rx_ringbuff_len;
 
 
 
@@ -84,9 +85,14 @@ TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 uint16_t waxThermistor;
-static uint16_t temperatureInDegrees;
+volatile float temperatureInDegrees;
+volatile float runningTotal;
 char sendTemp [8];
-uint16_t timeElapsed=0;
+volatile int count_cycles;
+volatile float runningTotal;
+volatile int timeElapsed;
+volatile uint16_t ONOFF=0;
+float setpoint = 65;
 
 
 /*For Limit Switches */
@@ -171,9 +177,10 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  usart_send_string("READY");
+  usart_send_string("READY\n");
   HAL_TIM_OC_Start(&htim4,TIM_CHANNEL_4);
   HAL_ADC_Start_IT(&hadc1);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -186,13 +193,18 @@ int main(void)
 		 //step('Y',3000,0);
 		 homing=0;
 		  }
-	 if(heater==1){
-		 HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-	     heater = 0;
-	 }
 
-	 int currentTemperature = temperatureInDegrees;
-	 int pi = PI(50,currentTemperature,50,0);
+//	 if(ONOFF==1){
+//	 		 if(temperatureInDegrees < setpoint){
+//	 			 htim3.Instance->CCR1 = 500;
+//	 		 } else if (temperatureInDegrees > setpoint){
+//	 			htim3.Instance->CCR1 = 0;
+//	 		 }
+//
+//	 		 ONOFF=0;
+//	 	 }
+
+	 float pi = PI(setpoint,temperatureInDegrees,50,0);
 	 int actuate = limitActuation(pi,0,500);
 	 htim3.Instance->CCR1 = actuate;
     /* USER CODE END WHILE */
@@ -442,6 +454,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -453,7 +466,16 @@ static void MX_TIM3_Init(void)
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 1000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -691,7 +713,7 @@ static void MX_GPIO_Init(void)
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_GPIOB);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOB, MotorZ_DIR_Pin|MotorY_DIR_Pin|MotorX_DIR_Pin);
+  LL_GPIO_ResetOutputPin(GPIOB, MotorZ_DIR_Pin|MotorX_DIR_Pin|MotorY_DIR_Pin);
 
   /**/
   LL_GPIO_AF_SetEXTISource(LL_GPIO_AF_EXTI_PORTB, LL_GPIO_AF_EXTI_LINE0);
@@ -726,12 +748,19 @@ static void MX_GPIO_Init(void)
   LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_1, LL_GPIO_MODE_INPUT);
 
   /**/
-  GPIO_InitStruct.Pin = MotorZ_DIR_Pin|MotorY_DIR_Pin|MotorX_DIR_Pin;
+  GPIO_InitStruct.Pin = MotorZ_DIR_Pin|MotorX_DIR_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_DOWN;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /**/
+  GPIO_InitStruct.Pin = MotorY_DIR_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  LL_GPIO_Init(MotorY_DIR_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   NVIC_SetPriority(EXTI0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
@@ -1032,26 +1061,27 @@ void limitSwitch2Trigger(void){
 
 }
 
-int PI(int setpoint, int current, int Kp, int Ki){
+float PI(float setpoint, float current, int Kp, int Ki){
 
 	if(current==0){
 			return 0;
 		}
 
-	int err = setpoint - current;
-	int P = Kp*err;
+	float err = setpoint - current;
+	if(err<0){
+		err=0;
+	}
+	float P = Kp*err;
 	return P;
 }
 
-int limitActuation(int input, int min, int max){
+int limitActuation(float input, int min, int max){
 	if(input<min) return min;
 	if(input>max) return max;
 	return input;
 }
 
 void sendTemperature(int time, int temperature){
-	itoa(time,sendTemp,10);
-	strcat(sendTemp,";");
 	char buffer [2];
 	itoa(temperature,buffer,10);
 	strcat(sendTemp,buffer);
@@ -1061,10 +1091,26 @@ void sendTemperature(int time, int temperature){
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
-	timeElapsed += 20; //An approximation, ADC conversion is triggered every 20ms - neglecting conversion time here.
+
 	waxThermistor = HAL_ADC_GetValue(&hadc1);
-	temperatureInDegrees = read_temp(waxThermistor);
-	sendTemperature(timeElapsed,temperatureInDegrees);
+	float temperature = getTemperature((float)waxThermistor);
+
+	/*Moving average*/
+		if(count_cycles<4){
+			runningTotal+=temperature;
+			count_cycles++;
+		}
+
+		if(count_cycles==4){
+			runningTotal+=temperature;
+			float average = (roundf(runningTotal * 100) / 100)/5;
+			temperatureInDegrees = average;
+			timeElapsed+=10;
+			runningTotal = 0;
+			count_cycles = 0;
+			ONOFF=1;
+			sendTemperature(timeElapsed,(int)temperatureInDegrees);
+		}
 }
 
 /* USER CODE END 4 */
