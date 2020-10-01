@@ -92,7 +92,7 @@ volatile int count_cycles;
 volatile float runningTotal;
 volatile int timeElapsed;
 volatile uint16_t ONOFF=0;
-float setpoint = 65;
+float setpoint = 50;
 
 
 /*For Limit Switches */
@@ -488,7 +488,7 @@ static void MX_TIM3_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
@@ -1109,7 +1109,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 			runningTotal = 0;
 			count_cycles = 0;
 			ONOFF=1;
-			sendTemperature(timeElapsed,(int)temperatureInDegrees);
+			//sendTemperature(timeElapsed,(int)temperatureInDegrees);
 		}
 }
 

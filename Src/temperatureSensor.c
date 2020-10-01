@@ -1,4 +1,5 @@
 #include "temperatureSensor.h"
+#include "math.h"
 
 #define TABLE_LEN 76
 
