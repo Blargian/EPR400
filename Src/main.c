@@ -63,7 +63,7 @@ static size_t usart_tx_ringbuff_len;
 
 static lwrb_t usart_rx_ringbuff;
 static uint8_t usart_rx_ringbuff_data[128];
-//static size_t usart_rx_ringbuff_len;
+static size_t usart_rx_ringbuff_len;
 
 
 
@@ -91,16 +91,20 @@ char sendTemp [8];
 volatile int count_cycles;
 volatile float runningTotal;
 volatile int timeElapsed;
-volatile uint16_t ONOFF=0;
-float setpoint = 50;
+volatile uint16_t startPI=0;
+float setpoint = 60;
 
 
 /*For Limit Switches */
-uint16_t limitSwitchState = 1;
-uint16_t limitSwitch1_Trigger = 0;
-uint16_t limitSwitch2_Trigger = 0;
+uint16_t limitSwitchZ_Trigger = 0;
+
+/*DIRECTIONS
+ * X: 1=left 0 = right
+ * Y: 1=down 0 = up
+ * Z: 1=down 0=up*/
 uint16_t direction_x = 1; //Initially set 1 to home towards limit switch
 uint16_t direction_y = 0; //Initially set 1 to home towards limit switch
+uint16_t direction_z = 1; //Initially set 0 to home towards limit switch
 
 uint16_t steps_x_target=0;
 uint16_t steps_y_target=0;
@@ -114,7 +118,7 @@ uint16_t steps_z = 0;
 
 /*Program actions*/
 uint16_t homing = 0;
-uint16_t heater = 1;
+uint16_t heater = 0;
 
 /* USER CODE END PV */
 
@@ -175,12 +179,14 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM4_Init();
   MX_TIM2_Init();
-  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+  /*NB! MX_TIM3_Init should not be called above after code generation. If init is called without HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+   * then the heater defaults to always on. */
+
   usart_send_string("READY\n");
-  HAL_TIM_OC_Start(&htim4,TIM_CHANNEL_4);
   HAL_ADC_Start_IT(&hadc1);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -189,24 +195,24 @@ int main(void)
   {
 
 	 if(homing==1){
-		 homing_XY();
-		 //step('Y',3000,0);
+		 //homing_XY();
+		 homing_Z();
+		 drawWax();
 		 homing=0;
 		  }
 
-//	 if(ONOFF==1){
-//	 		 if(temperatureInDegrees < setpoint){
-//	 			 htim3.Instance->CCR1 = 500;
-//	 		 } else if (temperatureInDegrees > setpoint){
-//	 			htim3.Instance->CCR1 = 0;
-//	 		 }
-//
-//	 		 ONOFF=0;
-//	 	 }
+	 if(heater==1){
+		 MX_TIM3_Init();
+		 HAL_TIM_OC_Start(&htim4,TIM_CHANNEL_4);
+		 HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+		 heater=0;
+	 }
 
-	 float pi = PI(setpoint,temperatureInDegrees,50,0);
-	 int actuate = limitActuation(pi,0,500);
-	 htim3.Instance->CCR1 = actuate;
+	 if(startPI==1){
+		 float pi = PI(setpoint,temperatureInDegrees,70,0); //Set proportional and integral constants
+		 int actuate = limitActuation(pi,0,800); //Set maximum duty cycle to 80%
+		 htim3.Instance->CCR1 = actuate;
+	 }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -596,7 +602,7 @@ static void MX_USART1_UART_Init(void)
   */
   GPIO_InitStruct.Pin = LL_GPIO_PIN_9;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -722,6 +728,9 @@ static void MX_GPIO_Init(void)
   LL_GPIO_AF_SetEXTISource(LL_GPIO_AF_EXTI_PORTB, LL_GPIO_AF_EXTI_LINE1);
 
   /**/
+  LL_GPIO_AF_SetEXTISource(LL_GPIO_AF_EXTI_PORTB, LL_GPIO_AF_EXTI_LINE15);
+
+  /**/
   EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_0;
   EXTI_InitStruct.LineCommand = ENABLE;
   EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
@@ -736,16 +745,29 @@ static void MX_GPIO_Init(void)
   LL_EXTI_Init(&EXTI_InitStruct);
 
   /**/
+  EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_15;
+  EXTI_InitStruct.LineCommand = ENABLE;
+  EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
+  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_RISING;
+  LL_EXTI_Init(&EXTI_InitStruct);
+
+  /**/
   LL_GPIO_SetPinPull(Limit_SwitchX_GPIO_Port, Limit_SwitchX_Pin, LL_GPIO_PULL_UP);
 
   /**/
-  LL_GPIO_SetPinPull(GPIOB, LL_GPIO_PIN_1, LL_GPIO_PULL_UP);
+  LL_GPIO_SetPinPull(LimitSwitchY_GPIO_Port, LimitSwitchY_Pin, LL_GPIO_PULL_UP);
+
+  /**/
+  LL_GPIO_SetPinPull(LimitSwitchZ_GPIO_Port, LimitSwitchZ_Pin, LL_GPIO_PULL_UP);
 
   /**/
   LL_GPIO_SetPinMode(Limit_SwitchX_GPIO_Port, Limit_SwitchX_Pin, LL_GPIO_MODE_INPUT);
 
   /**/
-  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_1, LL_GPIO_MODE_INPUT);
+  LL_GPIO_SetPinMode(LimitSwitchY_GPIO_Port, LimitSwitchY_Pin, LL_GPIO_MODE_INPUT);
+
+  /**/
+  LL_GPIO_SetPinMode(LimitSwitchZ_GPIO_Port, LimitSwitchZ_Pin, LL_GPIO_MODE_INPUT);
 
   /**/
   GPIO_InitStruct.Pin = MotorZ_DIR_Pin|MotorX_DIR_Pin;
@@ -767,6 +789,8 @@ static void MX_GPIO_Init(void)
   NVIC_EnableIRQ(EXTI0_IRQn);
   NVIC_SetPriority(EXTI1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
   NVIC_EnableIRQ(EXTI1_IRQn);
+  NVIC_SetPriority(EXTI15_10_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
+  NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
@@ -1037,8 +1061,18 @@ void step_update(char axis){
 }
 
 void homing_XY(){
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
-		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+}
+
+void homing_Z(){
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, direction_z);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+	RELEASE=0;
+}
+
+void drawWax(){
+	step('Z',335,0); //Step 335 to the top.
 }
 
 // Handling of interrupts for limit switches
@@ -1056,9 +1090,16 @@ void limitSwitch2Trigger(void){
 	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
 	direction_y = 1;
 	RELEASE = 1;
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction_y);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, direction_y);
 	step('Y',200,direction_y);
 
+}
+
+void limitSwitch3Trigger(void){
+	HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
+	direction_z=0;
+	RELEASE = 1;
+	step('Z',50,direction_z);
 }
 
 float PI(float setpoint, float current, int Kp, int Ki){
@@ -1092,6 +1133,7 @@ void sendTemperature(int time, int temperature){
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 
+	startPI=1;
 	waxThermistor = HAL_ADC_GetValue(&hadc1);
 	float temperature = getTemperature((float)waxThermistor);
 
@@ -1108,7 +1150,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 			timeElapsed+=10;
 			runningTotal = 0;
 			count_cycles = 0;
-			ONOFF=1;
 			//sendTemperature(timeElapsed,(int)temperatureInDegrees);
 		}
 }

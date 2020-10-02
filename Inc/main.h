@@ -69,9 +69,12 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 void limitSwitch1Trigger(void);
 void limitSwitch2Trigger(void);
+void limitSwitch3Trigger(void);
+void drawWax();
 void step(char axis, uint16_t numberSteps, uint16_t direction);
 void step_update(char axis);
 void homing_XY();
+void homing_Z();
 float PI(float setpoint, float current, int Kp, int Ki);
 int limitActuation(float input, int min, int max);
 void sendTemperature(int time, int temperature);
@@ -83,6 +86,12 @@ void sendTemperature(int time, int temperature);
 #define Limit_SwitchX_Pin LL_GPIO_PIN_0
 #define Limit_SwitchX_GPIO_Port GPIOB
 #define Limit_SwitchX_EXTI_IRQn EXTI0_IRQn
+#define LimitSwitchY_Pin LL_GPIO_PIN_1
+#define LimitSwitchY_GPIO_Port GPIOB
+#define LimitSwitchY_EXTI_IRQn EXTI1_IRQn
+#define LimitSwitchZ_Pin LL_GPIO_PIN_15
+#define LimitSwitchZ_GPIO_Port GPIOB
+#define LimitSwitchZ_EXTI_IRQn EXTI15_10_IRQn
 #define MotorY_STEP_Pin LL_GPIO_PIN_15
 #define MotorY_STEP_GPIO_Port GPIOA
 #define MotorZ_DIR_Pin LL_GPIO_PIN_3
