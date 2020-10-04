@@ -602,7 +602,7 @@ static void MX_USART1_UART_Init(void)
   */
   GPIO_InitStruct.Pin = LL_GPIO_PIN_9;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -660,6 +660,9 @@ static void MX_USART1_UART_Init(void)
    LL_DMA_EnableIT_TC(DMA1, LL_DMA_CHANNEL_4);
 
   /* USER CODE END USART1_Init 1 */
+   NVIC_SetPriority(DMA1_Channel5_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 0, 0));
+   NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+
   USART_InitStruct.BaudRate = 115200;
   USART_InitStruct.DataWidth = LL_USART_DATAWIDTH_8B;
   USART_InitStruct.StopBits = LL_USART_STOPBITS_1;
@@ -674,8 +677,8 @@ static void MX_USART1_UART_Init(void)
   LL_USART_EnableDMAReq_RX(USART1);
   LL_USART_EnableDMAReq_TX(USART1);
   LL_USART_EnableIT_IDLE(USART1);
-
-
+  LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_5);
+  LL_USART_Enable(USART1);
 
   /* USER CODE END USART1_Init 2 */
 
