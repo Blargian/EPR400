@@ -92,10 +92,12 @@ volatile int count_cycles;
 volatile float runningTotal;
 volatile int timeElapsed;
 volatile uint16_t startPI=0;
-float setpoint = 60;
+float setpoint = 40;
 
 
 /*For Limit Switches */
+uint16_t limitSwitchX_Trigger = 0;
+uint16_t limitSwitchY_Trigger = 0;
 uint16_t limitSwitchZ_Trigger = 0;
 
 /*DIRECTIONS
@@ -194,10 +196,25 @@ int main(void)
   while (1)
   {
 
+	 checkForCommands();
+
 	 if(homing==1){
-		 //homing_XY();
-		 homing_Z();
-		 drawWax();
+
+		 //start moving towards limit switch X
+		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
+		 HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+		 while(limitSwitchX_Trigger==0); //hang here until the switch is hit
+		 HAL_Delay(5000);
+
+		 //start moving towards limit switch Y
+		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction_y);
+		 HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+		 while(limitSwitchY_Trigger==0);
+		 HAL_Delay(5000);
+
+		 //start moving towards limit switch Z
+		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, direction_z);
+		 HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
 		 homing=0;
 		  }
 
@@ -212,6 +229,10 @@ int main(void)
 		 float pi = PI(setpoint,temperatureInDegrees,70,0); //Set proportional and integral constants
 		 int actuate = limitActuation(pi,0,800); //Set maximum duty cycle to 80%
 		 htim3.Instance->CCR1 = actuate;
+		 startPI=0;
+		 int temperature = (int) temperatureInDegrees;
+		 int time = timeElapsed;
+		 sendTemperature(time,temperature);
 	 }
     /* USER CODE END WHILE */
 
@@ -1063,16 +1084,6 @@ void step_update(char axis){
 		}
 }
 
-void homing_XY(){
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
-	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-}
-
-void homing_Z(){
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, direction_z);
-	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
-	RELEASE=0;
-}
 
 void drawWax(){
 	step('Z',335,0); //Step 335 to the top.
@@ -1085,8 +1096,8 @@ void limitSwitch1Trigger(void){
 	direction_x = 0;
 	RELEASE = 1;
 	step('X',200,direction_x);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, direction_y);
-	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+	limitSwitchX_Trigger=1; //set X LS triggered true
+
 }
 
 void limitSwitch2Trigger(void){
@@ -1095,7 +1106,7 @@ void limitSwitch2Trigger(void){
 	RELEASE = 1;
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, direction_y);
 	step('Y',200,direction_y);
-
+	limitSwitchY_Trigger =1;
 }
 
 void limitSwitch3Trigger(void){
@@ -1127,6 +1138,9 @@ int limitActuation(float input, int min, int max){
 
 void sendTemperature(int time, int temperature){
 	char buffer [2];
+	itoa(time,buffer,10);
+	strcat(sendTemp,buffer);
+	strcat(sendTemp,":");
 	itoa(temperature,buffer,10);
 	strcat(sendTemp,buffer);
 	strcat(sendTemp,"\n");
@@ -1136,27 +1150,49 @@ void sendTemperature(int time, int temperature){
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 
-	startPI=1;
 	waxThermistor = HAL_ADC_GetValue(&hadc1);
 	float temperature = getTemperature((float)waxThermistor);
 
 	/*Moving average*/
-		if(count_cycles<4){
+		if(count_cycles<49){
 			runningTotal+=temperature;
 			count_cycles++;
 		}
 
-		if(count_cycles==4){
+		if(count_cycles==49){
+			startPI=1;
 			runningTotal+=temperature;
-			float average = (roundf(runningTotal * 100) / 100)/5;
+			float average = (roundf(runningTotal * 100) / 100)/50;
 			temperatureInDegrees = average;
-			timeElapsed+=10;
+			timeElapsed+=1;
 			runningTotal = 0;
 			count_cycles = 0;
-			//sendTemperature(timeElapsed,(int)temperatureInDegrees);
 		}
 }
 
+void checkForCommands(){
+	//Check how many characters are in the buffer ready to be read,
+	//if there is something to be read then start reading
+	size_t toRead = lwrb_get_full(&usart_rx_ringbuff);
+	if(toRead!=0){
+		int result;
+		char currentRead [9] = {0};
+		lwrb_read(&usart_rx_ringbuff,currentRead,8);
+
+		char compareValue [9] = {0};
+		strcpy(compareValue,"home___;");
+		result = strcmp(currentRead, compareValue);
+		if(result==0){
+			homing=1;
+		}
+
+		strcpy(compareValue,"heat___;");
+		result = strcmp(currentRead, compareValue);
+		if(result==0){
+			heater=1;
+		}
+	}
+}
 /* USER CODE END 4 */
 
 /**

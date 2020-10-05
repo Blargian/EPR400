@@ -73,11 +73,10 @@ void limitSwitch3Trigger(void);
 void drawWax();
 void step(char axis, uint16_t numberSteps, uint16_t direction);
 void step_update(char axis);
-void homing_XY();
-void homing_Z();
 float PI(float setpoint, float current, int Kp, int Ki);
 int limitActuation(float input, int min, int max);
 void sendTemperature(int time, int temperature);
+void checkForCommands();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
