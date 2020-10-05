@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "lwrb/lwrb.h"
 #include "temperatureSensor.h"
 #include "math.h"
@@ -39,7 +40,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ADC_BUF_LEN 2
-
+#define CHAR_BUFF_SIZE 5
 /*
  * Function prototypes for UART and DMA management
  * */
@@ -92,7 +93,8 @@ volatile int count_cycles;
 volatile float runningTotal;
 volatile int timeElapsed;
 volatile uint16_t startPI=0;
-float setpoint = 40;
+float setpoint = 80;
+float errorIntegral=0;
 
 
 /*For Limit Switches */
@@ -121,6 +123,8 @@ uint16_t steps_z = 0;
 /*Program actions*/
 uint16_t homing = 0;
 uint16_t heater = 0;
+uint16_t drawCycle = 0;
+uint16_t pushWax = 0;
 
 /* USER CODE END PV */
 
@@ -221,18 +225,35 @@ int main(void)
 	 if(heater==1){
 		 MX_TIM3_Init();
 		 HAL_TIM_OC_Start(&htim4,TIM_CHANNEL_4);
+		 htim3.Instance->CCR1 = 900;
 		 HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 		 heater=0;
 	 }
 
 	 if(startPI==1){
-		 float pi = PI(setpoint,temperatureInDegrees,70,0); //Set proportional and integral constants
-		 int actuate = limitActuation(pi,0,800); //Set maximum duty cycle to 80%
-		 htim3.Instance->CCR1 = actuate;
+		 float error = setpoint - temperatureInDegrees;
+		 if(error > 0){
+			 htim3.Instance->CCR1 = 900;
+		 } else if (error<0){
+			 htim3.Instance->CCR1 = 0;
+		 }
+//		 float pi = PI(setpoint,temperatureInDegrees,20,10); //Set proportional and integral constants
+//		 int actuate = limitActuation(pi,0,800); //Set maximum duty cycle to 80%
+//		 htim3.Instance->CCR1 = actuate;
 		 startPI=0;
-		 int temperature = (int) temperatureInDegrees;
+		 int temperature = temperatureInDegrees;
 		 int time = timeElapsed;
 		 sendTemperature(time,temperature);
+	 }
+
+	 if(drawCycle==1){
+		 drawWax();
+		 drawCycle=0;
+	 }
+
+	 if(pushWax==1){
+		 step('Z',335,0);
+	 	 pushWax=0;
 	 }
     /* USER CODE END WHILE */
 
@@ -681,9 +702,6 @@ static void MX_USART1_UART_Init(void)
    LL_DMA_EnableIT_TC(DMA1, LL_DMA_CHANNEL_4);
 
   /* USER CODE END USART1_Init 1 */
-   NVIC_SetPriority(DMA1_Channel5_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 0, 0));
-   NVIC_EnableIRQ(DMA1_Channel5_IRQn);
-
   USART_InitStruct.BaudRate = 115200;
   USART_InitStruct.DataWidth = LL_USART_DATAWIDTH_8B;
   USART_InitStruct.StopBits = LL_USART_STOPBITS_1;
@@ -1118,6 +1136,7 @@ void limitSwitch3Trigger(void){
 
 float PI(float setpoint, float current, int Kp, int Ki){
 
+	//if there is something wrong with the ADC and it returns 0 then do nothing.
 	if(current==0){
 			return 0;
 		}
@@ -1126,8 +1145,16 @@ float PI(float setpoint, float current, int Kp, int Ki){
 	if(err<0){
 		err=0;
 	}
+
+	errorIntegral = errorIntegral + err;
+	if(errorIntegral>50){
+		errorIntegral=50;
+	} else if(errorIntegral <-50){
+		errorIntegral=-50;
+	}
 	float P = Kp*err;
-	return P;
+	float E = Ki*errorIntegral;
+	return P + E;
 }
 
 int limitActuation(float input, int min, int max){
@@ -1140,13 +1167,18 @@ void sendTemperature(int time, int temperature){
 	char buffer [2];
 	itoa(time,buffer,10);
 	strcat(sendTemp,buffer);
-	strcat(sendTemp,":");
+	strcat(sendTemp,",");
+//	char floatBuf[5];
+//	sprintf(floatBuf,"%.1f",temperature);
+//	strcat(sendTemp,floatBuf);
 	itoa(temperature,buffer,10);
 	strcat(sendTemp,buffer);
 	strcat(sendTemp,"\n");
 	usart_send_string(sendTemp);
 	sendTemp[0] = '\0';
+//	floatBuf[0] = '\0';
 }
+
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 
@@ -1190,6 +1222,18 @@ void checkForCommands(){
 		result = strcmp(currentRead, compareValue);
 		if(result==0){
 			heater=1;
+		}
+
+		strcpy(compareValue,"draw___;");
+		result = strcmp(currentRead, compareValue);
+		if(result==0){
+			drawCycle=1;
+		}
+
+		strcpy(compareValue,"push___;");
+		result = strcmp(currentRead, compareValue);
+		if(result==0){
+			pushWax=1;
 		}
 	}
 }

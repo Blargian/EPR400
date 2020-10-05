@@ -77,6 +77,7 @@ float PI(float setpoint, float current, int Kp, int Ki);
 int limitActuation(float input, int min, int max);
 void sendTemperature(int time, int temperature);
 void checkForCommands();
+char * _float_to_char(float x, char *p);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
