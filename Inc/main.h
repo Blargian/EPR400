@@ -71,18 +71,28 @@ void limitSwitch1Trigger(void);
 void limitSwitch2Trigger(void);
 void limitSwitch3Trigger(void);
 void drawWax();
-void step(char axis, uint16_t numberSteps, uint16_t direction);
+void step_x(uint16_t numberSteps, uint16_t direction);
+void step_y(uint16_t numberSteps, uint16_t direction);
+void step_z(uint16_t numberSteps, uint16_t direction);
 void step_update(char axis);
+void updatePosition(char axis);
 float PI(float setpoint, float current, int Kp, int Ki);
 int limitActuation(float input, int min, int max);
 void sendTemperature(int time, int temperature);
 void checkForCommands();
 char * _float_to_char(float x, char *p);
+float getPosition(char axis);
+void moveTo(char axis, float position);
+void homeX();
+void homeY();
+void homeZ();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define WaxHeater_PWM_Pin LL_GPIO_PIN_6
-#define WaxHeater_PWM_GPIO_Port GPIOA
+#define HEATER1_ONOFF_Pin LL_GPIO_PIN_6
+#define HEATER1_ONOFF_GPIO_Port GPIOA
+#define MotorZ_STEP_Pin LL_GPIO_PIN_7
+#define MotorZ_STEP_GPIO_Port GPIOA
 #define Limit_SwitchX_Pin LL_GPIO_PIN_0
 #define Limit_SwitchX_GPIO_Port GPIOB
 #define Limit_SwitchX_EXTI_IRQn EXTI0_IRQn
@@ -92,14 +102,14 @@ char * _float_to_char(float x, char *p);
 #define LimitSwitchZ_Pin LL_GPIO_PIN_15
 #define LimitSwitchZ_GPIO_Port GPIOB
 #define LimitSwitchZ_EXTI_IRQn EXTI15_10_IRQn
+#define MotorX_STEP_Pin LL_GPIO_PIN_8
+#define MotorX_STEP_GPIO_Port GPIOA
 #define MotorY_STEP_Pin LL_GPIO_PIN_15
 #define MotorY_STEP_GPIO_Port GPIOA
 #define MotorZ_DIR_Pin LL_GPIO_PIN_3
 #define MotorZ_DIR_GPIO_Port GPIOB
 #define MotorX_DIR_Pin LL_GPIO_PIN_5
 #define MotorX_DIR_GPIO_Port GPIOB
-#define MotorZ_STEP_Pin LL_GPIO_PIN_6
-#define MotorZ_STEP_GPIO_Port GPIOB
 #define MotorY_DIR_Pin LL_GPIO_PIN_7
 #define MotorY_DIR_GPIO_Port GPIOB
 #define Timing_Pin LL_GPIO_PIN_9
