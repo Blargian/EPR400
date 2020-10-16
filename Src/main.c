@@ -55,21 +55,20 @@ uint8_t usart_start_tx_dma_transfer(void);
 void usart_send_string(const char* str);//
 
 #define ARRAY_LEN(x)            (sizeof(x) / sizeof((x)[0])) //Array size
-static uint8_t usart_rx_dma_buffer[64]; //Buffer which the DMA works with
+static uint8_t usart_rx_dma_buffer[32]; //Buffer which the DMA works with
 
 /*Initialise ring buffer variables*/
 
 /*For TX*/
 
 static lwrb_t usart_tx_ringbuff;
-static uint8_t usart_tx_ringbuff_data[64];
+static uint8_t usart_tx_ringbuff_data[128];
 static size_t usart_tx_ringbuff_len;
 
 /*For RX*/
 
 static lwrb_t usart_rx_ringbuff;
 static uint8_t usart_rx_ringbuff_data[64]; //8 bytes, 10 times + 1 as per lwRB documentation recommendation
-static size_t usart_rx_ringbuff_len;
 
 
 
@@ -212,7 +211,7 @@ int main(void)
   while (1)
   {
 
-	 checkForCommands();
+	 //checkForCommands();
 
 //	 if(homing==1){
 //
@@ -906,6 +905,7 @@ uint8_t usart_start_tx_dma_transfer(void){
 
 void usart_process_data(const void* data, size_t len){
 	lwrb_write(&usart_rx_ringbuff, data, len);  /* Write data to RX buffer for editing */
+	checkForCommands();
 }
 
 /*This function handles the various cases for DMA read/write operation
@@ -915,6 +915,9 @@ void usart_process_data(const void* data, size_t len){
 void usart_rx_manage(){
 	static size_t old_position;
 	size_t position;
+
+	size_t arrayLen = ARRAY_LEN(usart_rx_dma_buffer);
+	size_t DMALen = LL_DMA_GetDataLength(DMA1, LL_DMA_CHANNEL_5);
 
 	/*Calculate the current position in the buffer*/
 	position = ARRAY_LEN(usart_rx_dma_buffer) - LL_DMA_GetDataLength(DMA1, LL_DMA_CHANNEL_5);
@@ -967,7 +970,7 @@ void DMA1_Channel5_IRQHandler(void)
 
 	/*Check if the Transfer Complete flag is enabled and raised */
 	if(LL_DMA_IsEnabledIT_TC(DMA1, LL_DMA_CHANNEL_5) && LL_DMA_IsActiveFlag_TC5(DMA1)){
-		LL_DMA_ClearFlag_HT5(DMA1); /* Clear the Transfer-COmplete flag */
+		LL_DMA_ClearFlag_TC5(DMA1); /* Clear the Transfer-COmplete flag */
 		usart_rx_manage();
 	}
 
