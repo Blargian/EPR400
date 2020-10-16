@@ -42,7 +42,7 @@
 #define ADC_BUF_LEN 2
 #define CHAR_BUFF_SIZE 5
 #define STEPS_PER_MM 800
-#define X_SOFT_LIMIT 200
+#define X_SOFT_LIMIT 220
 #define Y_SOFT_LIMIT 200
 #define Z_SOFT_LIMIT 5
 #define N	10 //10 data blocks to write
@@ -114,17 +114,17 @@ uint16_t direction_x = 1; //Initially set 1 to home towards limit switch
 uint16_t direction_y = 0; //Initially set 1 to home towards limit switch
 uint16_t direction_z = 0; //Initially set 0 to home towards limit switch
 
-uint16_t steps_x_target=0;
-uint16_t steps_y_target=0;
-uint16_t steps_z_target=0;
+uint32_t steps_x_target=0;
+uint32_t steps_y_target=0;
+uint32_t steps_z_target=0;
 
 volatile int RELEASE_X = 1;
 volatile int RELEASE_Y = 1;
 volatile int RELEASE_Z = 1;
 
-uint16_t steps_x = 0;
-uint16_t steps_y = 0;
-uint16_t steps_z = 0;
+volatile uint32_t steps_x = 0;
+volatile uint32_t steps_y = 0;
+volatile uint32_t steps_z = 0;
 
 volatile float positionX;
 volatile float positionY;
@@ -384,9 +384,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 2;
+  htim1.Init.Prescaler = 16;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 1000;
+  htim1.Init.Period = 100;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -410,7 +410,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 500;
+  sConfigOC.Pulse = 50;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -459,9 +459,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 4;
+  htim2.Init.Prescaler = 32;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1000;
+  htim2.Init.Period = 100;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -484,7 +484,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 500;
+  sConfigOC.Pulse = 50;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -916,9 +916,6 @@ void usart_rx_manage(){
 	static size_t old_position;
 	size_t position;
 
-	size_t arrayLen = ARRAY_LEN(usart_rx_dma_buffer);
-	size_t DMALen = LL_DMA_GetDataLength(DMA1, LL_DMA_CHANNEL_5);
-
 	/*Calculate the current position in the buffer*/
 	position = ARRAY_LEN(usart_rx_dma_buffer) - LL_DMA_GetDataLength(DMA1, LL_DMA_CHANNEL_5);
 	/*Check if there has been a change*/
@@ -1006,9 +1003,9 @@ void TIM1_UP_IRQHandler(void)
     	step_update('X');
     	__HAL_TIM_CLEAR_FLAG(&htim1, TIM_FLAG_UPDATE);
         __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC1 );
-        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC2 );
-        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC3 );
-        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC4 );
+//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC2 );
+//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC3 );
+//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC4 );
       }
     }
   }
@@ -1046,7 +1043,7 @@ void TIM3_IRQHandler(void)
 	    }
 }
 
-void step_x(uint16_t numberSteps, uint16_t direction){
+void step_x(uint32_t numberSteps, uint16_t direction){
 	RELEASE_X=0;
 	steps_x_target = numberSteps;
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
@@ -1054,7 +1051,7 @@ void step_x(uint16_t numberSteps, uint16_t direction){
 	HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
 }
 
-void step_y(uint16_t numberSteps, uint16_t direction){
+void step_y(uint32_t numberSteps, uint16_t direction){
 
 	RELEASE_Y=0;
 	steps_y_target = numberSteps;
@@ -1063,7 +1060,7 @@ void step_y(uint16_t numberSteps, uint16_t direction){
 	HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
 }
 
-void step_z(uint16_t numberSteps, uint16_t direction){
+void step_z(uint32_t numberSteps, uint16_t direction){
 
 	RELEASE_Z=0;
 	steps_z_target = numberSteps;
@@ -1114,7 +1111,7 @@ void step_update(char axis){
 				steps_z_target=0;
 				steps_z=0;
 				RELEASE_Z=1;
-				if(limitSwitchY_Trigger==1){
+				if(limitSwitchZ_Trigger==1){
 					positionZ=0;
 					limitSwitchZ_Trigger=0;
 					NVIC_EnableIRQ(EXTI15_10_IRQn);
@@ -1135,55 +1132,51 @@ void updatePosition(char axis){
 		case 'X':
 
 			//soft limits relative to the homed position. 30mm from the home position
-			if(positionX==X_SOFT_LIMIT){
+			if(positionX>=X_SOFT_LIMIT){
 				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 				break;
 			}
-			if(steps_x % 2 ==0){ //update event happens twice every pulse
-				//check if moving +X
-				if(direction_x == 0){
-					positionX+=(float)1/STEPS_PER_MM;
-				//check if moving -X
-				} else if (direction_x == 1) {
-					positionX-=(float)1/STEPS_PER_MM;
-				}
+
+			//check if moving +X
+			if(direction_x == 0){
+				positionX+=(float)1/(2*STEPS_PER_MM);
+			//check if moving -X
+			} else if (direction_x == 1) {
+				positionX-=(float)1/(2*STEPS_PER_MM);
 			}
 			break;
 
 		case 'Y':
 
 			//soft limits relative to the homed position. 30mm from the home position
-			if(positionY==Y_SOFT_LIMIT){
+			if(positionY>=Y_SOFT_LIMIT){
 				HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
 				break;
 			}
-			if(steps_y % 2 ==0){ //update event happens twice every pulse
-				//check if moving +Y
-				if(direction_y == 0){
-					positionY+=(float)1/STEPS_PER_MM;
-				//check if moving -Y
-				} else if (direction_y == 1) {
-					positionY-=(float)1/STEPS_PER_MM;
-				}
+
+			//check if moving +Y
+			if(direction_y == 0){
+				positionY-=(float)1/(2*STEPS_PER_MM);
+			//check if moving -Y
+			} else if (direction_y == 1) {
+				positionY+=(float)1/(2*STEPS_PER_MM);
 			}
 			break;
 
 		case 'Z':
 
 			//soft limits relative to the homed position. 30mm from the home position
-			if(positionZ==Z_SOFT_LIMIT){
+			if(positionZ>=Z_SOFT_LIMIT){
 				HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
 				break;
 			}
-				if(steps_z % 2 ==0){ //update event happens twice every pulse
-					//check if moving +Z
-					if(direction_z == 0){
-						positionZ+=(float)1/STEPS_PER_MM;
-					//check if moving -Z
-					} else if (direction_z == 1) {
-						positionZ-=(float)1/STEPS_PER_MM;
-					}
-				}
+			//check if moving +Z
+			if(direction_z == 0){
+				positionZ-=(float)1/(2*STEPS_PER_MM);
+			//check if moving -Z
+			} else if (direction_z == 1) {
+				positionZ+=(float)1/(2*STEPS_PER_MM);
+			}
 			break;
 	}
 }
@@ -1229,7 +1222,7 @@ void moveTo(char axis, float position){
 				usart_send_string("Invalid position");
 				break;
 			} else {
-				int stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
+				uint32_t stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
 				if(stepsToMove<0){
 					direction_x = 1; //move -X
 					step_x(-stepsToMove,direction_x); //take absolute value of distance and step
@@ -1248,7 +1241,7 @@ void moveTo(char axis, float position){
 				usart_send_string("Invalid position");
 				break;
 			} else {
-				int stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
+				uint32_t stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
 				if(stepsToMove<0){
 					direction_y = 0; //move -Y
 					step_y(-stepsToMove,direction_y); //take absolute value of distance and step
@@ -1267,12 +1260,12 @@ void moveTo(char axis, float position){
 				usart_send_string("Invalid position");
 				break;
 			} else {
-				int stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
+				uint32_t stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
 				if(stepsToMove<0){
-					direction_z = 1; //move -Z
+					direction_z = 0; //move -Z
 					step_z(-stepsToMove,direction_z); //take absolute value of distance and step
 				} else if (stepsToMove>0){
-					direction_z=0; //move +X
+					direction_z=1; //move +X
 					step_z(stepsToMove,direction_z);
 				}
 			}
@@ -1336,34 +1329,34 @@ void limitSwitch3Trigger(void){
 	limitSwitchZ_Trigger=1;
 }
 
-float PI(float setpoint, float current, int Kp, int Ki){
-
-	//if there is something wrong with the ADC and it returns 0 then do nothing.
-	if(current==0){
-			return 0;
-		}
-
-	float err = setpoint - current;
-	if(err<0){
-		err=0;
-	}
-
-	errorIntegral = errorIntegral + err;
-	if(errorIntegral>50){
-		errorIntegral=50;
-	} else if(errorIntegral <-50){
-		errorIntegral=-50;
-	}
-	float P = Kp*err;
-	float E = Ki*errorIntegral;
-	return P + E;
-}
-
-int limitActuation(float input, int min, int max){
-	if(input<min) return min;
-	if(input>max) return max;
-	return input;
-}
+//float PI(float setpoint, float current, int Kp, int Ki){
+//
+//	//if there is something wrong with the ADC and it returns 0 then do nothing.
+//	if(current==0){
+//			return 0;
+//		}
+//
+//	float err = setpoint - current;
+//	if(err<0){
+//		err=0;
+//	}
+//
+//	errorIntegral = errorIntegral + err;
+//	if(errorIntegral>50){
+//		errorIntegral=50;
+//	} else if(errorIntegral <-50){
+//		errorIntegral=-50;
+//	}
+//	float P = Kp*err;
+//	float E = Ki*errorIntegral;
+//	return P + E;
+//}
+//
+//int limitActuation(float input, int min, int max){
+//	if(input<min) return min;
+//	if(input>max) return max;
+//	return input;
+//}
 
 void sendTemperature(int time, int temperature){
 	char buffer [5];
@@ -1475,8 +1468,7 @@ void checkForCommands(){
 		result = strncmp(currentRead, compareValue,3);
 		if(result==0){
 			float positionValue = 0;
-			char positionToMove[2];
-
+			char positionToMove[3]; //store the char representation of the numerical position
 			char axis = currentRead[3]; //get the axis
 			strncpy(positionToMove, currentRead + 4, 7-4); //get the position
 			positionValue = (float) atoi(positionToMove); //convert from char to int
