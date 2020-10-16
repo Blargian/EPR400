@@ -43,7 +43,7 @@
 #define CHAR_BUFF_SIZE 5
 #define STEPS_PER_MM 800
 #define X_SOFT_LIMIT 220
-#define Y_SOFT_LIMIT 200
+#define Y_SOFT_LIMIT 110
 #define Z_SOFT_LIMIT 5
 #define N	10 //10 data blocks to write
 /*
