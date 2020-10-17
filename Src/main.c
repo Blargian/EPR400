@@ -30,6 +30,7 @@
 #include "lwrb/lwrb.h"
 #include "temperatureSensor.h"
 #include "math.h"
+#include "gcodeInterpreter.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -170,7 +171,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+   HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -994,38 +995,38 @@ void USART1_IRQHandler(void)
 
 /*Interrupt Routines for counting Steps*/
 
-void TIM1_UP_IRQHandler(void)
-{
-  if (__HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_UPDATE))
-  {
-    if (__HAL_TIM_GET_IT_SOURCE(&htim1, TIM_IT_UPDATE))
-    {
-    	step_update('X');
-    	__HAL_TIM_CLEAR_FLAG(&htim1, TIM_FLAG_UPDATE);
-        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC1 );
-//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC2 );
-//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC3 );
-//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC4 );
-      }
-    }
-  }
+//void TIM1_UP_IRQHandler(void)
+//{
+//  if (__HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_UPDATE))
+//  {
+//    if (__HAL_TIM_GET_IT_SOURCE(&htim1, TIM_IT_UPDATE))
+//    {
+//    	step_update('X');
+//    	__HAL_TIM_CLEAR_FLAG(&htim1, TIM_FLAG_UPDATE);
+//        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC1 );
+////        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC2 );
+////        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC3 );
+////        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC4 );
+//      }
+//    }
+//  }
 
 
-void TIM2_IRQHandler(void)
-{
-	if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE))
-	  {
-	    if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE))
-	    {
-	    	step_update('Y');
-	    	__HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC1 );
-	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC2 );
-	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC3 );
-	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC4 );
-	      }
-	    }
-}
+//void TIM2_IRQHandler(void)
+//{
+//	if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE))
+//	  {
+//	    if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE))
+//	    {
+//	    	step_update('Y');
+//	    	__HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+//	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC1 );
+//	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC2 );
+//	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC3 );
+//	        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC4 );
+//	      }
+//	    }
+//}
 
 void TIM3_IRQHandler(void)
 {
@@ -1049,6 +1050,17 @@ void step_x(uint32_t numberSteps, uint16_t direction){
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
 	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_UPDATE);
 	HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
+	while(RELEASE_X!=1){
+		 if (__HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_UPDATE))
+		  {
+		    if (__HAL_TIM_GET_IT_SOURCE(&htim1, TIM_IT_UPDATE))
+		    {
+		    	step_update('X');
+		    	__HAL_TIM_CLEAR_FLAG(&htim1, TIM_FLAG_UPDATE);
+		        __HAL_TIM_CLEAR_FLAG(&htim1,TIM_FLAG_CC1 );
+		      }
+	}
+	}
 }
 
 void step_y(uint32_t numberSteps, uint16_t direction){
@@ -1058,6 +1070,17 @@ void step_y(uint32_t numberSteps, uint16_t direction){
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, direction_y);
 	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE);
 	HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
+	while(RELEASE_Y!=1){
+			if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE))
+			  {
+			    if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE))
+			    {
+			    	step_update('Y');
+			    	__HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+			        __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC1 );
+			      }
+			    }
+			      }
 }
 
 void step_z(uint32_t numberSteps, uint16_t direction){
@@ -1080,11 +1103,6 @@ void step_update(char axis){
 				steps_x_target=0;
 				steps_x=0;
 				RELEASE_X=1;
-				if(limitSwitchX_Trigger==1){
-					positionX=0;
-					limitSwitchX_Trigger=0;
-					NVIC_EnableIRQ(EXTI0_IRQn);
-				}
 			}
 			break;
 		case 'Y':
@@ -1095,11 +1113,6 @@ void step_update(char axis){
 				steps_y_target=0;
 				steps_y=0;
 				RELEASE_Y=1;
-				if(limitSwitchY_Trigger==1){
-					positionY=0;
-					limitSwitchY_Trigger=0;
-					NVIC_EnableIRQ(EXTI1_IRQn);
-				}
 			}
 			break;
 
@@ -1205,6 +1218,11 @@ float getPosition(char axis){
 		return 0;
 }
 
+uint32_t positionToSteps(float position){
+	uint32_t positionInSteps = position*STEPS_PER_MM;
+	return positionInSteps;
+}
+
 /*This function checks to see if the requested move does not
  * violate the soft limit then works out the required steps
  * to get to that position and calls the function to step */
@@ -1289,14 +1307,16 @@ void limitSwitch1Trigger(void){
 	if(limitSwitchX_Trigger==1){
 		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 		return;
-	}
-
+	} else {
 	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 	NVIC_DisableIRQ(EXTI0_IRQn);
 	direction_x = 0; //Step +X
 	RELEASE_X = 1;
 	step_x(4000,direction_x); //move 5mm off limit
+	positionX=0;
 	limitSwitchX_Trigger=1;
+	NVIC_EnableIRQ(EXTI0_IRQn);
+	}
 }
 
 void limitSwitch2Trigger(void){
@@ -1304,14 +1324,17 @@ void limitSwitch2Trigger(void){
 	if(limitSwitchY_Trigger==1){
 		HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
 		return;
-	}
+	} else {
 
 	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
 	NVIC_DisableIRQ(EXTI1_IRQn);
 	direction_y = 1;
 	RELEASE_Y = 1;
 	step_y(4000,direction_y); //move 5mm off limit
+	positionY=0;
 	limitSwitchY_Trigger=1;
+	NVIC_EnableIRQ(EXTI1_IRQn);
+	}
 }
 
 void limitSwitch3Trigger(void){
@@ -1433,6 +1456,14 @@ void homeZ(){
 	 HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 }
 
+void test(){
+
+	uint32_t x0 = positionToSteps(getPosition('X'));
+	uint32_t y0 = positionToSteps(getPosition('Y'));
+	drawLine(x0,y0,x0+positionToSteps(20),y0+positionToSteps(20));
+	x0=0;
+}
+
 void checkForCommands(){
 	//Check how many characters are in the buffer ready to be read,
 	//if there is something to be read then start reading
@@ -1482,10 +1513,10 @@ void checkForCommands(){
 			heater=1;
 		}
 
-		strcpy(compareValue,"draw___;");
+		strcpy(compareValue,"test___;");
 		result = strcmp(currentRead, compareValue);
 		if(result==0){
-			drawCycle=1;
+			test();
 		}
 
 		strcpy(compareValue,"push___;");

@@ -82,6 +82,7 @@ void sendTemperature(int time, int temperature);
 void checkForCommands();
 char * _float_to_char(float x, char *p);
 float getPosition(char axis);
+uint32_t positionToSteps(float position);
 void moveTo(char axis, float position);
 void homeX();
 void homeY();
@@ -115,8 +116,8 @@ void homeZ();
 #define Timing_Pin LL_GPIO_PIN_9
 #define Timing_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-void TIM1_UP_IRQHandler(void);
-void TIM2_IRQHandler(void);
+//void TIM1_UP_IRQHandler(void);
+//void TIM2_IRQHandler(void);
 void TIM4_IRQHandler(void);
 void HAL_ADC_ConvHalfCpltCallback (ADC_HandleTypeDef *hadc);
 /* USER CODE END Private defines */
