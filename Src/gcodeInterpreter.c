@@ -139,7 +139,7 @@ void drawArc(float x, float y, float I, float J, float direction){
 /* This function checks whether the current and final points lie in the same octant
  * If we're in the same quadrant then return true, otherwise return false */
 
-bool check(float x0, float y0, float x1, float y1){
+bool check(int32_t x0, int32_t y0, int32_t x1, int32_t y1){
 	if( (x0>0 && x1>0) || (x0<0 && x1<0) ){ //if start and end points are both in the left half or right half
 		if( (y0 > 0 && y1>0) || (y0<0 && y1<0) ){ //check if we are in the top or bottom quarter
 			if( ((fabs(x0)>fabs(y0)) && (fabs(x1)>fabs(y1)))  || ((fabs(x0)<fabs(y0)) && (fabs(x1)<fabs(y1))) ){ //check if we are in the same quadrant
@@ -154,7 +154,7 @@ bool check(float x0, float y0, float x1, float y1){
 
 /* This function checks to see if the operation has completed or not */
 
-bool complete(float x0, float y0, float x1, float y1){
+bool complete(int32_t x0, int32_t y0, int32_t x1, int32_t y1){
 	if(check(x0,y0,x1,y1)){ //If we are in the same quadrant check if the point is reached
 			if(y0==y1){ //if we reached the destination point return true //DOESNT REACH HERE
 				return true;
@@ -195,25 +195,25 @@ void arc(float x1mm, float y1mm, float I, float J){
 	float y1 = round(positionToSteps(y1mm));
 
 	//We haven't finished keep stepping
-	while(!complete(getPosition('X'),getPosition('Y'),x1,y1)){
+	while(!complete(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),x1,y1)){
 		x0 = getPosition('X');
 		y0 = getPosition('Y');
 		x =x0-referenceX;
 		y =y0-referenceY;
-		nextStep(x,y,x1,y1,r);
+		nextStep(positionToSteps(x),positionToSteps(y),positionToSteps(x1),positionToSteps(y1),positionToSteps(r));
 	}
 }
 
-void nextStep(float x, float  y, float x1, float y1, float r){
+void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 	int incX =1;
 	int incY =1;
 	int dirX;
 	int dirY;
-	float errorTerm1;
-	float errorTerm2;
+	int32_t errorTerm1;
+	int32_t errorTerm2;
 	int t;
 
-	if((fabs(x) > fabs(y)) || (fabs(x)==(fabs(y)))){ //Quadrants 2,3,6 and 7
+	if((fabs(x) > fabs(y)) || (x==y)){ //Quadrants 2,3,6 and 7
 		//do checks to see which quadrant (x,y) is in relative to the center point (I,J)
 
 		//Quadrant 2, y and x positive
@@ -222,8 +222,6 @@ void nextStep(float x, float  y, float x1, float y1, float r){
 
 			errorTerm1 = fabs((x+1)*(x+1) + (y-1)*(y-1) - r*r);
 			errorTerm2 = fabs((x+1)*(x+1) + (y)*(y) - r*r);
-			errorTerm1 = ceilf(errorTerm1*10.0)/10.0;
-			errorTerm2 = ceilf(errorTerm2*10.0)/10.0;
 			if(errorTerm1 < errorTerm2){
 				dirY=Y_UP;
 				step_y(incY,dirY); //if error term overflows then step x
