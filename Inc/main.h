@@ -82,7 +82,7 @@ void sendTemperature(int time, int temperature);
 void checkForCommands();
 char * _float_to_char(float x, char *p);
 float getPosition(char axis);
-uint32_t positionToSteps(float position);
+int32_t positionToSteps(float position);
 void moveTo(char axis, float position);
 void homeX();
 void homeY();

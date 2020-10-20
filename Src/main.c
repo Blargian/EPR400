@@ -112,7 +112,7 @@ uint16_t limitSwitchZ_Trigger = 0;
  * Y: 1=down 0 = up
  * Z: 1=down 0=up*/
 uint16_t direction_x = 1; //Initially set 1 to home towards limit switch
-uint16_t direction_y = 0; //Initially set 1 to home towards limit switch
+uint16_t direction_y = 0; //Initially set 0 to home towards limit switch
 uint16_t direction_z = 0; //Initially set 0 to home towards limit switch
 
 uint32_t steps_x_target=0;
@@ -1047,6 +1047,7 @@ void TIM3_IRQHandler(void)
 void step_x(uint32_t numberSteps, uint16_t direction){
 	RELEASE_X=0;
 	steps_x_target = numberSteps;
+	direction_x = direction;
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, direction_x);
 	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_UPDATE);
 	HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
@@ -1067,6 +1068,7 @@ void step_y(uint32_t numberSteps, uint16_t direction){
 
 	RELEASE_Y=0;
 	steps_y_target = numberSteps;
+	direction_y = direction;
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, direction_y);
 	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE);
 	HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
@@ -1087,6 +1089,7 @@ void step_z(uint32_t numberSteps, uint16_t direction){
 
 	RELEASE_Z=0;
 	steps_z_target = numberSteps;
+	direction_z = direction;
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, direction_z);
 	__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_UPDATE);
 	HAL_TIM_PWM_Start_IT(&htim3, TIM_CHANNEL_2);
@@ -1098,7 +1101,7 @@ void step_update(char axis){
 		case 'X':
 			steps_x++;
 			updatePosition(axis);
-			if(steps_x==(2*steps_x_target)){ //check if 2* because the update event happens twice every pulse
+			if(steps_x==(steps_x_target)){ //check if 2* because the update event happens twice every pulse
 				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 				steps_x_target=0;
 				steps_x=0;
@@ -1108,7 +1111,7 @@ void step_update(char axis){
 		case 'Y':
 			steps_y++;
 			updatePosition(axis);
-			if(steps_y==(2*steps_y_target)){
+			if(steps_y==(steps_y_target)){
 				HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
 				steps_y_target=0;
 				steps_y=0;
@@ -1119,7 +1122,7 @@ void step_update(char axis){
 		case 'Z':
 			steps_z++;
 			updatePosition(axis);
-			if(steps_z==(2*steps_z_target)){
+			if(steps_z==(steps_z_target)){
 				HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
 				steps_z_target=0;
 				steps_z=0;
@@ -1218,8 +1221,8 @@ float getPosition(char axis){
 		return 0;
 }
 
-uint32_t positionToSteps(float position){
-	uint32_t positionInSteps = position*STEPS_PER_MM;
+int32_t positionToSteps(float position){
+	float positionInSteps = position*STEPS_PER_MM;
 	return positionInSteps;
 }
 
@@ -1457,11 +1460,10 @@ void homeZ(){
 }
 
 void test(){
+	drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(0),positionToSteps(20.000));
+	arc(20,0,0,-20.000);
+	//drawArc(20,0,0,-20,1);
 
-	uint32_t x0 = positionToSteps(getPosition('X'));
-	uint32_t y0 = positionToSteps(getPosition('Y'));
-	drawLine(x0,y0,x0+positionToSteps(20),y0+positionToSteps(20));
-	x0=0;
 }
 
 void checkForCommands(){
