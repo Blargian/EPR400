@@ -1122,7 +1122,7 @@ void step_update(char axis){
 		case 'Z':
 			steps_z++;
 			updatePosition(axis);
-			if(steps_z==(steps_z_target)){
+			if(steps_z==(2*steps_z_target)){
 				HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
 				steps_z_target=0;
 				steps_z=0;
@@ -1243,7 +1243,7 @@ void moveTo(char axis, float position){
 				usart_send_string("Invalid position");
 				break;
 			} else {
-				uint32_t stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
+				uint32_t stepsToMove = 2*distanceToMove*STEPS_PER_MM; //work out the steps to move
 				if(stepsToMove<0){
 					direction_x = 1; //move -X
 					step_x(-stepsToMove,direction_x); //take absolute value of distance and step
@@ -1262,7 +1262,7 @@ void moveTo(char axis, float position){
 				usart_send_string("Invalid position");
 				break;
 			} else {
-				uint32_t stepsToMove = distanceToMove*STEPS_PER_MM; //work out the steps to move
+				uint32_t stepsToMove = 2*distanceToMove*STEPS_PER_MM; //work out the steps to move
 				if(stepsToMove<0){
 					direction_y = 0; //move -Y
 					step_y(-stepsToMove,direction_y); //take absolute value of distance and step
@@ -1460,9 +1460,16 @@ void homeZ(){
 }
 
 void test(){
-	drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(0),positionToSteps(20.000));
-	arc(20,0,0,-20.000);
-	//drawArc(20,0,0,-20,1);
+	moveTo('X',120);
+	moveTo('Y', 60);
+	positionX=0;
+	positionY=0;
+	drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(0.000),positionToSteps(3.000));
+	arc(2.000,3.000, 1.000,2.291);
+	drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(2.000),positionToSteps(0.000));
+	arc(0,0,-1.000,-2.291);
+	//drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(2.000),positionToSteps(-0.000));
+	//arc(0.000,0.000,-1.000,-2.291);
 
 }
 

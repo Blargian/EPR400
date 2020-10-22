@@ -12,6 +12,9 @@
 extern volatile float positionX;
 extern volatile float positionY;
 
+int currentQuadrant =0;
+int targetQuadrant;
+
 
 /*This function employs Bresenhams line algorithm for drawing straight lines
  * The basic idea of the algorithm is that you can approximate any straight
@@ -24,7 +27,7 @@ extern volatile float positionY;
 
 void drawLine(int32_t x0, int32_t y0, int32_t x, int32_t y){
 
-	uint32_t dx, //X differential
+	int32_t dx, //X differential
 		dy, //Y differential
 		error=0, //Error differential
 		x_inc, //increment value for x
@@ -35,10 +38,10 @@ void drawLine(int32_t x0, int32_t y0, int32_t x, int32_t y){
 		;
 
 	//Compute horizontal and vertical deltas between current position and desired position
-	dx = x-x0;
-	dy = y-y0;
-	x_dir = dx<0?1:0; //if dx is negative then move left otherwise move right
-	y_dir = dy<0?0:1; //if dy is negative then move down otherwise move up
+	dx = fabs(x-x0);
+	dy = fabs(y-y0);
+	x_dir = (x0<x)?0:1; //if dx is negative then move left otherwise move right
+	y_dir = (y0<y)?1:0; //if dy is negative then move down otherwise move up
 	x_inc=1; //step x by 1 each time (1.25 micro meters)
 	y_inc=1; //step y by 1 each time (1.25 micro meters)
 
@@ -140,31 +143,75 @@ void drawArc(float x, float y, float I, float J, float direction){
  * If we're in the same quadrant then return true, otherwise return false */
 
 bool check(int32_t x0, int32_t y0, int32_t x1, int32_t y1){
-	if( (x0>0 && x1>0) || (x0<0 && x1<0) ){ //if start and end points are both in the left half or right half
-		if( (y0 > 0 && y1>0) || (y0<0 && y1<0) ){ //check if we are in the top or bottom quarter
-			if( ((fabs(x0)>fabs(y0)) && (fabs(x1)>fabs(y1)))  || ((fabs(x0)<fabs(y0)) && (fabs(x1)<fabs(y1))) ){ //check if we are in the same quadrant
-				return true; //DOESN'T REACH HERE
+	if( (x0>0 && x1>0) || (x0<0 && x1<0) ){ //if the x coordinate is in the same quadrant as the target x coordinate
+		if( (y0>0 && y1>0) || (y0<0 && y1<0) ){ //if the y coordinate is in the same quadrant as the target y coordinate
+			if(((fabs(x0)>fabs(y0)) && (fabs(x1)>fabs(y1))) || ((fabs(x0)<fabs(y0)) && (fabs(x1)<fabs(y1)))){ //check if we are in the same octant
+				return true;
 			}
 		}
 	} else {
 		return false;
 	}
+
 	return false; //to stop compiler complaining warning: control reaches end of non-void function
 }
 
 /* This function checks to see if the operation has completed or not */
 
-bool complete(int32_t x0, int32_t y0, int32_t x1, int32_t y1){
-	if(check(x0,y0,x1,y1)){ //If we are in the same quadrant check if the point is reached
-			if(y0==y1){ //if we reached the destination point return true //DOESNT REACH HERE
+bool complete(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int currentQuadrant, int targetQuadrant){
+	if(currentQuadrant == targetQuadrant){ //If we are in the same quadrant check if the point is reached
+			if(y0==y1){ //if we reached the destination point return true
 				return true;
-			} else if (x0==x1) { //if we reached the destination point return true
+			} else if(x0==x1){
 				return true;
-		}
+			}
 	} else {
 		return false;
 	}
+//
+//	if(fabs(y1-y0)<1 && fabs(x1-x0)<5){
+//		return true;
+//	} else {
 	return false; //to stop compiler complaining warning: control reaches end of non-void function
+
+}
+
+int getTargetQuadrant(int32_t x1, int32_t y1){
+	if((x1>0 && y1>0)){
+		if((fabs(y1)>fabs(x1))){
+			return 1;
+		} else{
+			return 2;
+		}
+	} else if ((x1>0 && y1<0)){
+		if((fabs(y1)>fabs(x1))){
+			return 4;
+		} else{
+			return 3;
+		}
+	} else if ((x1<0 && y1<0)){
+		if((fabs(y1)>fabs(x1))){
+			return 5;
+		} else{
+			return 6;
+		}
+	} else if ((x1<0 && y1>0)){
+		if((fabs(y1)>fabs(x1))){
+			return 8;
+		} else {
+			return 7;
+		}
+	}
+
+	if(x1>0 && y1==0){
+		return 9; //right crossover
+	} else if (y1<0 && x1==0){
+		return 10; //bottom crossover
+	} else if (x1<0 && y1==0){
+		return 11; //left crossover
+	} else {
+		return 12; //top crossover
+	}
 }
 
 
@@ -177,6 +224,9 @@ bool complete(int32_t x0, int32_t y0, int32_t x1, int32_t y1){
 
 void arc(float x1mm, float y1mm, float I, float J){
 
+//	float oldPositionX = getPosition('X');
+//	float oldPositionY = getPosition('Y');
+
 	float referenceX = getPosition('X') + I; //get the reference position
 	float referenceY = getPosition('Y') + J;
 
@@ -188,36 +238,108 @@ void arc(float x1mm, float y1mm, float I, float J){
 	//Make correction for algorithm assuming that the center is (0,0)
 	float x0;
 	float y0;
-	float x;
-	float y;
-	float rStep = round(positionToSteps(r));
-	float x1 = round(positionToSteps(x1mm));
-	float y1 = round(positionToSteps(y1mm));
+	int32_t x;
+	int32_t y;
+	int32_t x1;
+	int32_t y1;
+
+	//These are the cases we have
+	if(referenceX>=0){
+		if(x1mm>referenceX){
+			x1 = +positionToSteps(fabs(x1mm-referenceX));
+		//x1<referencex
+		} else if (x1mm<referenceX){
+			x1 = -positionToSteps(fabs(x1mm-referenceX));
+		}
+	} else if (referenceX<0){
+		if(x1mm>referenceX){
+			x1 = +positionToSteps(fabs(x1mm-referenceX));
+		//x1<referencex
+		} else if (x1mm<referenceX){
+			x1 = -positionToSteps(fabs(x1mm-referenceX));
+		}
+	}
+
+	if(referenceY>=0){
+		if(y1mm<referenceY){
+			y1 = -positionToSteps(fabs(y1mm-referenceY));
+		} else if (y1mm>referenceY){
+			y1 = +positionToSteps(fabs(y1mm-referenceY));
+		}
+	} else if (referenceY<=0){
+		if(y1mm<referenceY){
+					y1 = -positionToSteps(fabs(y1mm-referenceY));
+				} else if (y1mm>referenceY){
+					y1 = +positionToSteps(fabs(y1mm-referenceY));
+				}
+	}
+
+	if(referenceX<0 && referenceY<0){
+
+
+	}
+
+
+	int targetQuadrant = getTargetQuadrant(x1,y1);
 
 	//We haven't finished keep stepping
-	while(!complete(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),x1,y1)){
+	while(!complete(x,y,x1,y1, currentQuadrant, targetQuadrant)){
 		x0 = getPosition('X');
 		y0 = getPosition('Y');
-		x =x0-referenceX;
-		y =y0-referenceY;
-		nextStep(positionToSteps(x),positionToSteps(y),positionToSteps(x1),positionToSteps(y1),positionToSteps(r));
+
+		if(referenceX>=0){
+			if(x0<referenceX){
+				x = -positionToSteps(fabs(x0 - referenceX));
+			} else if (x0>referenceX){
+				x = +positionToSteps(fabs(x0 - referenceX));
+			}
+		}
+
+		if(referenceX<0){
+			if(x0<referenceX){
+				x = -positionToSteps(fabs(x0 - referenceX));
+			} else if (x0 > referenceX){
+				x = +positionToSteps(fabs(x0 - referenceX));
+			}
+		}
+
+		if(referenceY>=0){
+			if(y0<referenceY){
+				y = -positionToSteps(fabs(y0 - referenceY));
+			} else if (y0>referenceY){
+				y = +positionToSteps(fabs(y0 - referenceY));
+			}
+		}
+
+		if(referenceY<0){
+			if(y0<referenceY){
+				y = -positionToSteps(fabs(y0 - referenceY));
+			}else if (y0 > referenceY){
+				y = +positionToSteps(fabs(y0 - referenceY));
+			}
+		}
+
+		nextStep(x,y,positionToSteps(r),targetQuadrant);
 	}
+
+//	positionX+=oldPositionX;
+//	positionY+=oldPositionY;
 }
 
-void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
+void nextStep(int32_t x, int32_t  y, int32_t r, int quadrant ){
 	int incX =1;
 	int incY =1;
 	int dirX;
 	int dirY;
 	int32_t errorTerm1;
 	int32_t errorTerm2;
-	int t;
 
-	if((fabs(x) > fabs(y)) || (x==y)){ //Quadrants 2,3,6 and 7
+	if((fabs(x) >= fabs(y)) && (y!=0)){ //Quadrants 2,3,6 and 7 || (x==y)
 		//do checks to see which quadrant (x,y) is in relative to the center point (I,J)
 
 		//Quadrant 2, y and x positive
 		if(y > 0 && x > 0){
+			currentQuadrant = 2;
 			dirX = X_RIGHT;
 
 			errorTerm1 = fabs((x+1)*(x+1) + (y-1)*(y-1) - r*r);
@@ -231,14 +353,15 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 
 		}
 		//Quadrant 3, y negative, x positive
-		if(y<=0 && x>0){
+		if(y<0 && x>0){
+			currentQuadrant = 3;
 			dirX=X_LEFT;
 
 			errorTerm1 = fabs((x-1)*(x-1) + (y-1)*(y-1) - r*r);
 			errorTerm2 = fabs((x-1)*(x-1) + y*y - r*r);
 
 			if(errorTerm1 < errorTerm2){
-				dirY=Y_DOWN;
+				dirY=Y_UP;
 				step_y(incY,dirY); //if the error term underflows then decrease Y
 			} else {
 				step_x(incX,dirX); //otherwise keep stepping x
@@ -246,14 +369,15 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 
 		}
 		//Quadrant 6, y and x negative
-		if(y <=0 && x <0){
+		if(y <0 && x <0){
+			currentQuadrant = 6;
 			dirX=X_LEFT; //x decreases
 
 			errorTerm1 = fabs((x-1)*(x-1) + (y+1)*(y+1) - r*r);
 			errorTerm2 = fabs((x-1)*(x-1) + (y)*(y) - r*r);
 
 			if(errorTerm1 < errorTerm2){
-				dirY=Y_UP;
+				dirY=Y_DOWN;
 				step_y(incY,dirY); //if error term overflows then increase y
 			} else {
 				step_x(incX,dirX); //Otherwise keep decreasing x
@@ -262,13 +386,14 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 		}
 		//Quadrant 7, y positive and x negative
 		if(y > 0 && x < 0){
+			currentQuadrant = 7;
 			dirX=X_RIGHT;
 
 			errorTerm1 = fabs((x+1)*(x+1) + (y+1)*(y+1) - r*r);
 			errorTerm2 = fabs((x+1)*(x+1) + y*y - r*r);
 
 			if(errorTerm1 < errorTerm2){
-				dirY=Y_UP;
+				dirY=Y_DOWN;
 				step_y(incY,dirY);
 			} else {
 				step_x(incX,dirX);
@@ -277,11 +402,12 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 		}
 	}
 
-	if(fabs(x) < fabs(y)){ //Quadrants 1,4,5 and 8
+	if((fabs(x) <= fabs(y)) && (x!=0)){ //Quadrants 1,4,5 and 8  || (x==-y)
 		//do checks to see which quadrant (x,y) is in relative to the center point (I,J)
 
 		//Quadrant 1, y>0 and x>0
-		if(y>0 && x>=0){
+		if(y>0 && x>0){
+			currentQuadrant = 1;
 			dirY=Y_UP; //Y decreases
 
 			errorTerm1 = fabs((x+1)*(x+1) + (y-1)*(y-1) - r*r);
@@ -296,8 +422,24 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 			}
 
 		//Quadrant 4, x is positive and and y negative
-		if(y<0 && x<=0){
+		if(y<0 && x>0){
+			currentQuadrant = 4;
 			dirY=Y_UP; //Y decreases
+
+			errorTerm1 = fabs((x-1)*(x-1) + (y-1)*(y-1) - r*r);
+			errorTerm2 = fabs(x*x + (y-1)*(y-1) - r*r);
+
+			if(errorTerm1 < errorTerm2){
+				dirX=X_LEFT;
+				step_x(incX,dirX);
+			} else {
+				step_y(incY,dirY);
+			}
+		}
+		//Quadrant 5, x is negative and y is negative
+		if(y<0 && x<0){
+			currentQuadrant = 5;
+			dirY=Y_DOWN;
 
 			errorTerm1 = fabs((x-1)*(x-1) + (y+1)*(y+1) - r*r);
 			errorTerm2 = fabs(x*x + (y+1)*(y+1) - r*r);
@@ -309,24 +451,15 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 				step_y(incY,dirY);
 			}
 		}
-		//Quadrant 5, x is negative and y is negative
-		if(y<0 && x<0){
-			dirY=Y_DOWN;
-
-			errorTerm1 = fabs((x+1)*(x+1) + (y+1)*(y+1) - r*r);
-			errorTerm2 = fabs(x*x + (y+1)*(y+1) - r*r);
-
-			if(errorTerm1 < errorTerm2){
-				dirX=X_RIGHT;
-				step_x(incX,dirX);
-			} else {
-				step_y(incY,dirY);
-			}
-		}
 
 		//Quadrant 8, x is negative and y is positive
 		if(x<0 && y>0){
+			currentQuadrant = 8;
 			dirY=Y_DOWN;
+
+			if(positionY>7.79){
+					__NOP();
+				}
 
 			errorTerm1 = fabs((x+1)*(x+1)+ (y+1)*(y+1) - r*r);
 			errorTerm2 = fabs(x*x + (y+1)*(y+1) - r*r);
@@ -339,6 +472,66 @@ void nextStep(int32_t x, int32_t  y, int32_t x1, int32_t y1, int32_t r){
 			}
 		}
 
+		}
+
+	if((x==0 && y>0)){
+		currentQuadrant = 10;
+				dirY=Y_UP; //Y decreases
+
+				errorTerm1 = fabs((x+1)*(x+1) + (y-1)*(y-1) - r*r);
+				errorTerm2 = fabs(x*x + (y-1)*(y-1) - r*r);
+
+				if(errorTerm1 < errorTerm2){
+					dirX=X_RIGHT;
+					step_x(incX,dirX);
+				} else {
+					step_y(incY,dirY);
+				}
+		}
+
+	if((x==0 && y<0)){
+		currentQuadrant = 12;
+		dirX=X_LEFT;
+
+			errorTerm1 = fabs((x-1)*(x-1) + (y-1)*(y-1) - r*r);
+			errorTerm2 = fabs((x-1)*(x-1) + y*y - r*r);
+
+			if(errorTerm1 < errorTerm2){
+				dirY=Y_UP;
+				step_y(incY,dirY); //if the error term underflows then decrease Y
+			} else {
+				step_x(incX,dirX); //otherwise keep stepping x
+			}
+		}
+
+	if((y==0 && x>0)){
+			currentQuadrant = 9;
+			dirX=X_LEFT;
+
+			errorTerm1 = fabs((x-1)*(x-1) + (y-1)*(y-1) - r*r);
+			errorTerm2 = fabs((x-1)*(x-1) + y*y - r*r);
+
+			if(errorTerm1 < errorTerm2){
+				dirY=Y_UP;
+				step_y(incY,dirY); //if the error term underflows then decrease Y
+			} else {
+				step_x(incX,dirX); //otherwise keep stepping x
+			}
+		}
+
+	if((y==0 && x<0)){
+			currentQuadrant = 11;
+			dirY=Y_DOWN;
+
+				errorTerm1 = fabs((x-1)*(x-1) + (y+1)*(y+1) - r*r);
+				errorTerm2 = fabs(x*x + (y+1)*(y+1) - r*r);
+
+				if(errorTerm1 < errorTerm2){
+					dirX=X_LEFT;
+					step_x(incX,dirX);
+				} else {
+					step_y(incY,dirY);
+				}
 		}
 	}
 
