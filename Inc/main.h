@@ -81,7 +81,7 @@ int limitActuation(float input, int min, int max);
 void sendTemperature(int time, int temperature);
 void checkForCommands();
 char * _float_to_char(float x, char *p);
-float getPosition(char axis);
+int32_t getPosition(char axis);
 int32_t positionToSteps(float position);
 void moveTo(char axis, float position);
 void homeX();

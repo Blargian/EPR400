@@ -71,6 +71,9 @@ static size_t usart_tx_ringbuff_len;
 static lwrb_t usart_rx_ringbuff;
 static uint8_t usart_rx_ringbuff_data[64]; //8 bytes, 10 times + 1 as per lwRB documentation recommendation
 
+/*For Gcode*/
+static lwrb_t gcode_ringbuff;
+static uint8_t gcode_ringbuff_data[321]; //32 bytes, 10 times + 1 as per lwRB documentation recommendation
 
 
 /* USER CODE END PD */
@@ -171,7 +174,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-   HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -185,6 +188,7 @@ int main(void)
   /* Initialize the ringbuffers */
   lwrb_init(&usart_tx_ringbuff, usart_tx_ringbuff_data, sizeof(usart_tx_ringbuff_data));
   lwrb_init(&usart_rx_ringbuff, usart_rx_ringbuff_data, sizeof(usart_rx_ringbuff_data));
+  lwrb_init(&gcode_ringbuff, gcode_ringbuff_data, sizeof(gcode_ringbuff_data));
 
   /* USER CODE END SysInit */
 
@@ -201,8 +205,6 @@ int main(void)
 
   /*NB! MX_TIM3_Init should not be called above after code generation. If init is called without HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
    * then the heater defaults to always on. */
-
-  usart_send_string("READY\n");
   HAL_ADC_Start_IT(&hadc1);
 
   /* USER CODE END 2 */
@@ -1028,21 +1030,21 @@ void USART1_IRQHandler(void)
 //	    }
 //}
 
-void TIM3_IRQHandler(void)
-{
-	if (__HAL_TIM_GET_FLAG(&htim3, TIM_FLAG_UPDATE))
-	  {
-	    if (__HAL_TIM_GET_IT_SOURCE(&htim3, TIM_IT_UPDATE))
-	    {
-	    	step_update('Z');
-	    	__HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
-	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC1);
-	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC2);
-	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC3);
-	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC4);
-	      }
-	    }
-}
+//void TIM3_IRQHandler(void)
+//{
+//	if (__HAL_TIM_GET_FLAG(&htim3, TIM_FLAG_UPDATE))
+//	  {
+//	    if (__HAL_TIM_GET_IT_SOURCE(&htim3, TIM_IT_UPDATE))
+//	    {
+//	    	step_update('Z');
+//	    	__HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
+//	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC1);
+//	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC2);
+//	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC3);
+//	        __HAL_TIM_CLEAR_FLAG(&htim3,TIM_FLAG_CC4);
+//	      }
+//	    }
+//}
 
 void step_x(uint32_t numberSteps, uint16_t direction){
 	RELEASE_X=0;
@@ -1202,18 +1204,18 @@ void updatePosition(char axis){
  * in mm's.
  */
 
-float getPosition(char axis){
+int32_t getPosition(char axis){
 	switch(axis){
 		case 'X':
-			return positionX;
+			return positionToSteps(positionX);
 			break;
 
 		case 'Y':
-			return positionY;
+			return positionToSteps(positionY);
 			break;
 
 		case 'Z':
-			return positionZ;
+			return positionToSteps(positionZ);
 			break;
 		default:
 			break;
@@ -1222,7 +1224,7 @@ float getPosition(char axis){
 }
 
 int32_t positionToSteps(float position){
-	float positionInSteps = position*STEPS_PER_MM;
+	int32_t positionInSteps = position*STEPS_PER_MM;
 	return positionInSteps;
 }
 
@@ -1386,12 +1388,7 @@ void limitSwitch3Trigger(void){
 
 void sendTemperature(int time, int temperature){
 	char buffer [5];
-	itoa(time,buffer,10);
-	strcat(sendTemp,buffer);
-	strcat(sendTemp,",");
-//	char floatBuf[5];
-//	sprintf(floatBuf,"%.1f",temperature);
-//	strcat(sendTemp,floatBuf);
+	strcat(sendTemp,"T");
 	itoa(temperature,buffer,10);
 	strcat(sendTemp,buffer);
 	strcat(sendTemp,"\n");
@@ -1464,7 +1461,7 @@ void test(){
 	moveTo('Y', 60);
 	positionX=0;
 	positionY=0;
-	drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(0.000),positionToSteps(3.000));
+//	drawLine(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(0.000),positionToSteps(3.000));
 	arc(2.000,3.000, 1.000,2.291);
 	drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(2.000),positionToSteps(0.000));
 	arc(0,0,-1.000,-2.291);
@@ -1473,25 +1470,94 @@ void test(){
 
 }
 
+/* This function looks at a buffer of Gcode commands, loops through the buffer
+ * looking for the end of the command and then executes each line successively
+ */
+void startPrint(){
+	char *command = (char *)calloc(1, 2 - 0 +1); //make a string 2 bytes long
+
+	char compareValue [5] = {0};
+	char X [5] = {0};
+	char Y [5] = {0};
+	char I [6] = {0};
+	char J [6] = {0};
+	float x_value, y_value, i_value,j_value;
+
+	size_t toRead = lwrb_get_full(&gcode_ringbuff);
+
+	moveTo('X',125);
+	moveTo('Y', 60);
+	positionX=0;
+	positionY=0;
+
+	while(toRead!=0){
+
+		lwrb_read(&gcode_ringbuff,command,2); //read the first two characters from gcode buffer into this string
+
+		strcpy(compareValue,"G1");
+		int result = strcmp(command, compareValue);
+		if(result==0){ //If the command is G1
+			lwrb_skip(&gcode_ringbuff,1); //skip the 'X'
+			lwrb_read(&gcode_ringbuff,X,6); //read the value
+			lwrb_skip(&gcode_ringbuff,1); //skip the 'Y'
+			lwrb_read(&gcode_ringbuff,Y,6); //read the value
+			lwrb_skip(&gcode_ringbuff,1); //skip the hash tag
+
+			x_value = atof(X);
+			y_value = atof(Y);
+
+			//Call Bresenhams line drawing function
+			drawLine(getPosition('X'),getPosition('Y'),positionToSteps(x_value),positionToSteps(y_value));
+		} else {
+			strcpy(compareValue,"G2");
+			result = strcmp(command, compareValue);
+			if(result==0){
+				lwrb_skip(&gcode_ringbuff,1); //skip the 'X'
+				lwrb_read(&gcode_ringbuff,X,6); //read the value
+				lwrb_skip(&gcode_ringbuff,1); //skip the 'Y'
+				lwrb_read(&gcode_ringbuff,Y,6); //read the value
+				lwrb_skip(&gcode_ringbuff,1); //skip the I
+				lwrb_read(&gcode_ringbuff,I,6); //read the I value
+				lwrb_skip(&gcode_ringbuff,1); //skip the J
+				lwrb_read(&gcode_ringbuff,J,6); //read the J value
+				lwrb_skip(&gcode_ringbuff,1); //skip the hash tag
+
+				x_value = atof(X);
+				y_value = atof(Y);
+				i_value = atof(I);
+				j_value = atof(J);
+
+				arc(positionToSteps(x_value),positionToSteps(y_value), i_value,j_value);
+			}
+		}
+
+		toRead = lwrb_get_full(&gcode_ringbuff);
+	}
+
+	direction_x = 1; //Make sure the homing positions are correct again
+	direction_y = 0;
+}
+
+
 void checkForCommands(){
 	//Check how many characters are in the buffer ready to be read,
 	//if there is something to be read then start reading
 	size_t toRead = lwrb_get_full(&usart_rx_ringbuff);
-	if(toRead!=0){
+	if(toRead==32){
 		int result;
-		char currentRead [9] = {0};
-		lwrb_read(&usart_rx_ringbuff,currentRead,8);
+		char currentRead [32] = {0};
+		lwrb_read(&usart_rx_ringbuff,currentRead,32);
 
 		char compareValue [9] = {0};
-		strcpy(compareValue,"homx___;");
-		result = strcmp(currentRead, compareValue);
+		strcpy(compareValue,"homx");
+		result = strncmp(currentRead, compareValue,4);
 		if(result==0){
 			homeX(); //
 			return;
 		}
 
-		strcpy(compareValue,"homy___;");
-		result = strcmp(currentRead, compareValue);
+		strcpy(compareValue,"homy");
+		result = strncmp(currentRead, compareValue,4);
 		if(result==0){
 			homeY();
 			return;
@@ -1516,8 +1582,25 @@ void checkForCommands(){
 			return;
 		}
 
-		strcpy(compareValue,"heat___;");
-		result = strcmp(currentRead, compareValue);
+		//Check for linear move command G1 or G2 commands
+		strcpy(compareValue,"G");
+			result = strncmp(currentRead, compareValue,1);
+			if(result==0){
+				char * stopIndex = strchr(currentRead,'#');
+				lwrb_write(&gcode_ringbuff, currentRead, stopIndex - currentRead+1);
+				return;
+			}
+
+		//Check for clockwise arc move command F
+		strcpy(compareValue,"F");
+			result = strncmp(currentRead, compareValue,1);
+			if(result==0){
+				startPrint(&gcode_ringbuff);
+				return;
+			}
+
+		strcpy(compareValue,"heat");
+		result = strncmp(currentRead, compareValue,3);
 		if(result==0){
 			heater=1;
 		}

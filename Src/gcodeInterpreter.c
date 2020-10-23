@@ -38,12 +38,12 @@ void drawLine(int32_t x0, int32_t y0, int32_t x, int32_t y){
 		;
 
 	//Compute horizontal and vertical deltas between current position and desired position
-	dx = fabs(x-x0);
-	dy = fabs(y-y0);
+	dx = fabs(x-round(x0));
+	dy = fabs(y-round(y0));
 	x_dir = (x0<x)?0:1; //if dx is negative then move left otherwise move right
 	y_dir = (y0<y)?1:0; //if dy is negative then move down otherwise move up
-	x_inc=1; //step x by 1 each time (1.25 micro meters)
-	y_inc=1; //step y by 1 each time (1.25 micro meters)
+	x_inc=2; //step x by 1 each time (1.25 micro meters)
+	y_inc=2; //step y by 1 each time (1.25 micro meters)
 
 	if(dx >=dy){
 		for(i=0;i<dx;i++){
@@ -57,103 +57,13 @@ void drawLine(int32_t x0, int32_t y0, int32_t x, int32_t y){
 	} else {
 		for(i=0;i<dy;i++){
 			step_y(y_inc,y_dir);
-			error-=dy;
-			step_y(y_inc,y_dir);
-		}
-	}
-}
-
-/* returns the angle of dy/dx as a value from 0...2PI */
-static float myArctan(float dy,float dx) {
-  float a=atan2(dy,dx);
-  if(a<0){
-	  a=(M_PI*2.0)+a;
-  }
-  return a;
-}
-
-/*This function is used with G2 clockwise or counterclockwise arcs
- * Takes the current position coordinates X0, Y0 [in steps not mm]
- * Takes the end point coordinates X,Y [in steps not mm]
- * Takes the circle pivot I, J [in steps not mm]
- * Takes the direction Clockwise =1 or Counterclockwise = 0
- *
- * 1. Get the circle radius
- * 2. Find the arc angle
- * 3. From the radius and angle determine the length
- * 4. Split that length into line segments
- * 5. Call Bresenhams line algorithm on each segment
- *  */
-
-void drawArc(float x, float y, float I, float J, float direction){
-
-	float x0 = getPosition('X'); //get the start X position
-	float y0 = getPosition('Y'); //get the start Y position
-
-	float cx = x0;
-	float cy = y0;
-	//First get the start radius and startAngle
-	float dx = x0-cx;
-	float dy= y0-cy;
-	float startRadius = sqrt(dx*dx+dy*dy);
-	float startAngle = myArctan(dy,dx);
-
-	//Do the same for the end radius and endAngle
-	dx = x - cx;
-	dy = y - cy;
-	float endRadius = sqrt(dx*dx+dy*dy);
-	float endAngle = myArctan(dy,dx);
-
-	//Get the arc angle and arc radius
-	float arcRadius = endRadius - startRadius;
-	float theta = endAngle - startAngle;
-
-	if(direction==0 && theta<0){
-		endAngle+=2*M_PI;
-	} else if (direction==1 && theta>0){
-		startAngle+=2*M_PI;
-	}
-
-	theta = endAngle - startAngle; //recalculate theta after corrections
-
-	float length1 = fabs(theta)*startRadius;
-	float length = sqrt(length1*length1+arcRadius*arcRadius);
-
-	int segments = fmax(ceil(length/MM_PER_SEGMENT),1); //at this stage we need to convert to steps?
-
-	float i,r, nx, ny;
-	float scale,a;
-
-	for(i=0;i<segments;++i){
-		//Do the interpolation
-		scale = (i/segments);
-		a = (theta*scale) + startAngle;
-		r = (arcRadius*scale + startRadius);
-		nx = cx + cos(a)*r;
-		ny = cy + sin(a)*r;
-		drawLine(positionToSteps(getPosition('X')),positionToSteps(getPosition('Y')),positionToSteps(nx),positionToSteps(ny));
-
-		x0=nx;
-		y0=ny;
-	}
-
-	}
-
-/* This function checks whether the current and final points lie in the same octant
- * If we're in the same quadrant then return true, otherwise return false */
-
-bool check(int32_t x0, int32_t y0, int32_t x1, int32_t y1){
-	if( (x0>0 && x1>0) || (x0<0 && x1<0) ){ //if the x coordinate is in the same quadrant as the target x coordinate
-		if( (y0>0 && y1>0) || (y0<0 && y1<0) ){ //if the y coordinate is in the same quadrant as the target y coordinate
-			if(((fabs(x0)>fabs(y0)) && (fabs(x1)>fabs(y1))) || ((fabs(x0)<fabs(y0)) && (fabs(x1)<fabs(y1)))){ //check if we are in the same octant
-				return true;
+			error+=dx;
+			if(error>=dy){
+				error-=dy;
+				step_x(x_inc,x_dir);
 			}
 		}
-	} else {
-		return false;
 	}
-
-	return false; //to stop compiler complaining warning: control reaches end of non-void function
 }
 
 /* This function checks to see if the operation has completed or not */
@@ -222,13 +132,13 @@ int getTargetQuadrant(int32_t x1, int32_t y1){
 
 /*There are more efficient ways to code this but my brain is smol*/
 
-void arc(float x1mm, float y1mm, float I, float J){
+void arc(int32_t x1mm, int32_t y1mm, float I, float J){
 
 //	float oldPositionX = getPosition('X');
 //	float oldPositionY = getPosition('Y');
 
-	float referenceX = getPosition('X') + I; //get the reference position
-	float referenceY = getPosition('Y') + J;
+	float referenceX = getPosition('X') + positionToSteps(I); //get the reference position
+	float referenceY = getPosition('Y') + positionToSteps(J);
 
 	//set where we are now as 0
 	//Get the radius
@@ -245,32 +155,32 @@ void arc(float x1mm, float y1mm, float I, float J){
 
 	//These are the cases we have
 	if(referenceX>=0){
-		if(x1mm>referenceX){
-			x1 = +positionToSteps(fabs(x1mm-referenceX));
+		if(x1mm>=referenceX){
+			x1 = +fabs(x1mm-referenceX);
 		//x1<referencex
 		} else if (x1mm<referenceX){
-			x1 = -positionToSteps(fabs(x1mm-referenceX));
+			x1 = -fabs(x1mm-referenceX);
 		}
 	} else if (referenceX<0){
 		if(x1mm>referenceX){
-			x1 = +positionToSteps(fabs(x1mm-referenceX));
+			x1 = +fabs(x1mm-referenceX);
 		//x1<referencex
 		} else if (x1mm<referenceX){
-			x1 = -positionToSteps(fabs(x1mm-referenceX));
+			x1 = -fabs(x1mm-referenceX);
 		}
 	}
 
 	if(referenceY>=0){
 		if(y1mm<referenceY){
-			y1 = -positionToSteps(fabs(y1mm-referenceY));
+			y1 = -fabs(y1mm-referenceY);
 		} else if (y1mm>referenceY){
-			y1 = +positionToSteps(fabs(y1mm-referenceY));
+			y1 = +fabs(y1mm-referenceY);
 		}
-	} else if (referenceY<=0){
+	} else if (referenceY<0){
 		if(y1mm<referenceY){
-					y1 = -positionToSteps(fabs(y1mm-referenceY));
+					y1 = -fabs(y1mm-referenceY);
 				} else if (y1mm>referenceY){
-					y1 = +positionToSteps(fabs(y1mm-referenceY));
+					y1 = +fabs(y1mm-referenceY);
 				}
 	}
 
@@ -289,33 +199,33 @@ void arc(float x1mm, float y1mm, float I, float J){
 
 		if(referenceX>=0){
 			if(x0<referenceX){
-				x = -positionToSteps(fabs(x0 - referenceX));
+				x = -fabs(x0 - referenceX);
 			} else if (x0>referenceX){
-				x = +positionToSteps(fabs(x0 - referenceX));
+				x = +fabs(x0 - referenceX);
 			}
 		}
 
 		if(referenceX<0){
 			if(x0<referenceX){
-				x = -positionToSteps(fabs(x0 - referenceX));
+				x = -fabs(x0 - referenceX);
 			} else if (x0 > referenceX){
-				x = +positionToSteps(fabs(x0 - referenceX));
+				x = +fabs(x0 - referenceX);
 			}
 		}
 
 		if(referenceY>=0){
-			if(y0<referenceY){
-				y = -positionToSteps(fabs(y0 - referenceY));
+			if(y0<=referenceY){
+				y = -fabs(y0 - referenceY);
 			} else if (y0>referenceY){
-				y = +positionToSteps(fabs(y0 - referenceY));
+				y = +fabs(y0 - referenceY);
 			}
 		}
 
 		if(referenceY<0){
 			if(y0<referenceY){
-				y = -positionToSteps(fabs(y0 - referenceY));
+				y = -fabs(y0 - referenceY);
 			}else if (y0 > referenceY){
-				y = +positionToSteps(fabs(y0 - referenceY));
+				y = +fabs(y0 - referenceY);
 			}
 		}
 
@@ -534,6 +444,7 @@ void nextStep(int32_t x, int32_t  y, int32_t r, int quadrant ){
 				}
 		}
 	}
+
 
 
 
