@@ -42,8 +42,8 @@ void drawLine(int32_t x0, int32_t y0, int32_t x, int32_t y){
 	dy = fabs(y-round(y0));
 	x_dir = (x0<x)?0:1; //if dx is negative then move left otherwise move right
 	y_dir = (y0<y)?1:0; //if dy is negative then move down otherwise move up
-	x_inc=2; //step x by 1 each time (1.25 micro meters)
-	y_inc=2; //step y by 1 each time (1.25 micro meters)
+	x_inc=1; //step x by 1 each time (1.25 micro meters)
+	y_inc=1; //step y by 1 each time (1.25 micro meters)
 
 	if(dx >=dy){
 		for(i=0;i<dx;i++){
@@ -206,12 +206,17 @@ void arc(int32_t x1mm, int32_t y1mm, float I, float J){
 		}
 
 		if(referenceX<0){
-			if(x0<referenceX){
+			if(x0<=referenceX){
 				x = -fabs(x0 - referenceX);
 			} else if (x0 > referenceX){
 				x = +fabs(x0 - referenceX);
 			}
 		}
+
+		if(x0==0 && y0==1){
+			x=0;
+		}
+
 
 		if(referenceY>=0){
 			if(y0<=referenceY){
@@ -345,6 +350,10 @@ void nextStep(int32_t x, int32_t  y, int32_t r, int quadrant ){
 			} else {
 				step_y(incY,dirY);
 			}
+
+			if(x==1){
+				__NOP();
+			}
 		}
 		//Quadrant 5, x is negative and y is negative
 		if(y<0 && x<0){
@@ -385,7 +394,7 @@ void nextStep(int32_t x, int32_t  y, int32_t r, int quadrant ){
 		}
 
 	if((x==0 && y>0)){
-		currentQuadrant = 10;
+		currentQuadrant = 12;
 				dirY=Y_UP; //Y decreases
 
 				errorTerm1 = fabs((x+1)*(x+1) + (y-1)*(y-1) - r*r);
@@ -400,7 +409,7 @@ void nextStep(int32_t x, int32_t  y, int32_t r, int quadrant ){
 		}
 
 	if((x==0 && y<0)){
-		currentQuadrant = 12;
+		currentQuadrant = 10;
 		dirX=X_LEFT;
 
 			errorTerm1 = fabs((x-1)*(x-1) + (y-1)*(y-1) - r*r);

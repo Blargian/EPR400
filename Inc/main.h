@@ -71,6 +71,7 @@ void limitSwitch1Trigger(void);
 void limitSwitch2Trigger(void);
 void limitSwitch3Trigger(void);
 void drawWax();
+void testPush();
 void step_x(uint32_t numberSteps, uint16_t direction);
 void step_y(uint32_t numberSteps, uint16_t direction);
 void step_z(uint32_t numberSteps, uint16_t direction);
@@ -90,6 +91,8 @@ void homeZ();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Bed_Heater_Pin LL_GPIO_PIN_5
+#define Bed_Heater_GPIO_Port GPIOA
 #define HEATER1_ONOFF_Pin LL_GPIO_PIN_6
 #define HEATER1_ONOFF_GPIO_Port GPIOA
 #define MotorZ_STEP_Pin LL_GPIO_PIN_7
