@@ -17,3 +17,7 @@ In this repository you'll find my code for the STM32F103C8T6 microcontroller. Co
 
 The User-Interface code written in Python and running on the raspberry Pi can be found here:
 Wax Printer UI [GitHub Repository](https://github.com/Blargian/EPR400-UI).
+
+##Disclaimer: 
+
+I've learnt quite a lot more about embedded systems and good coding practices so I am quite certain I commit a lot of cardinal embedded sins in this codebase. Don't judge too harshly! :) 
