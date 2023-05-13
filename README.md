@@ -1,5 +1,7 @@
 # Wax Printer for Fabrication of Paper-based Microfluidic Devices
 
+{% include youtube.html id="NEMOkZihh2M" %}
+
 ## The Problem Statement:
 
 >This project will entail the design, building and testing of a solid ink printer for wax printing of microfluidic paper based devices. The printer must be able to process and print a CAD design of a microfluidic channel using solid wax. The system should also allow for melting of the wax through the paper once the design is printed. This project involves the design and construction of the hardware required to implement a printer system, using solid wax as the ink, along with a controlled heating system for melting the wax. The design and implementation of accurate positioning and dispensing mechanisms will need to be applied for accurate and repeatable printing to be accomplished.
