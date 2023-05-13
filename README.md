@@ -1,6 +1,7 @@
 # Wax Printer for Fabrication of Paper-based Microfluidic Devices
 
-{% include youtube.html id="NEMOkZihh2M" %}
+## Video demonstration:
+[![Project demonstration](https://img.youtube.com/vi/NEMOkZihh2M/maxresdefault.jpg)](https://www.youtube.com/watch?v=NEMOkZihh2M)
 
 ## The Problem Statement:
 
